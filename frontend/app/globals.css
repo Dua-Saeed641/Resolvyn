@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* project.md §6: base palette as CSS custom properties, for any code that
+   can't reach Tailwind's config (e.g. inline SVG charts). Keep in sync
+   with tailwind.config.ts. */
+:root {
+  --bg-primary: #050505;
+  --bg-secondary: #0a0a0a;
+  --card: #111111;
+  --card-elevated: #171717;
+  --border: #222222;
+  --divider: #2e2e2e;
+  --text-secondary: #666666;
+  --text-muted: #999999;
+  --text-body: #d4d4d4;
+  --text-primary: #f5f5f5;
+  --text-max: #ffffff;
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-body);
+}

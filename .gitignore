@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.db
+.pytest_cache/
+
+# Node / Next.js
+node_modules/
+.next/
+next-env.d.ts
+
+# Env files
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db

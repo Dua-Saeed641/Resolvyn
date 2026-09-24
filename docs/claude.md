@@ -1,0 +1,89 @@
+# Working in this repository
+
+Read this before touching code. It exists to keep implementation from drifting away from what Resolvyn actually is. Read `[[context]]` first if you haven't (what Resolvyn is, glossary), then `[[architecture]]` (the full system design). This file is the resulting engineering rulebook.
+
+## Ground truth order
+
+1. **The diagrams** (`docs/resolvyn-system-flow.png`, `docs/resolvyn-ai-loop-detail.png`, `docs/memory-rulebook-detail.png`, `docs/neuroserve-reference-architecture.png`) define what the system *is*.
+2. **`docs/architecture.md`** is the text transcription of (1) — treat disagreements between architecture.md and this file as a bug in this file.
+3. **`docs/project.md`** defines how the *first prototype* should look and what to build first. It is scoped down on purpose (see `[[context]]`, "Project stage") — never take it as the system's architecture, only as the current build's UI/demo spec.
+
+If you're about to add a feature, a page, or a backend module and can't tell which of these governs it: it's product behavior → check the diagrams / architecture.md; it's visual design, copy, or prototype build order → check project.md.
+
+## Naming and copy
+
+- The product is **Resolvyn**, spelled exactly that way, everywhere — code, UI copy, docs, commit messages. Never substitute "NEUROSERVE" or any other name as the product identity; that name belongs only to the reference diagram.
+- No marketing language. Use operational language: "Payment verification in progress," "Billing Agent active," "Human approval required," not "Revolutionizing customer support with cutting-edge AI."
+- No `Lorem ipsum`, `Coming soon`, `TODO`, or "Example text" left visible in any page a user can reach. Backend scaffolding for not-yet-built logic should raise `NotImplementedError` with a one-line pointer to the relevant architecture section — never silently return fake success.
+- Never claim a simulated action succeeded. A refund/order/shipping call must show its real state (`NOT_STARTED → WAITING → COMPLETED / FAILED`); don't let the AI's assistant-style response get ahead of what a tool call has actually verified.
+
+## Vocabulary — do not invent new terms
+
+These are the only values the UI and API may use. They live in `frontend/lib/constants.ts` on the frontend; keep backend models (`backend/app/models/`) in sync with it.
+
+- **Ticket status**: `NEW, ANALYZING, ROUTING, ACTIVE, WAITING_FOR_HUMAN, VERIFYING, RESOLVED, FAILED`
+- **Agent state**: `IDLE, ANALYZING, RETRIEVING, ACTING, VERIFYING, WAITING, COMPLETED, ERROR`
+- **Priority**: `LOW, MEDIUM, HIGH, CRITICAL` — color only on HIGH/CRITICAL
+- **Sentiment**: `Positive, Neutral, Frustrated, Angry` — no emojis, not visually dominant
+- **Confidence bands**: High ≥90%, Medium 75–89%, Low <75% (UI thresholds only, not calibration claims)
+- **Human actions**: `GUIDE, APPROVE, CORRECT, OVERRIDE, TEACH` — always all five, always this order, never presented as "just an escalation"
+- **Specialist agents** (prototype roster, `docs/architecture.md` §2.3/§3): Billing, Account, Technical, Order, Logistics
+
+## Design system (`docs/project.md` §6-9, §51-57, §92-94)
+
+- Palette is black/near-black/grey/white only, defined once in `frontend/tailwind.config.ts` and `frontend/app/globals.css`. Accent colors (`success #22C55E`, `warning #F59E0B`, `danger #EF4444`, `info #3B82F6`) are used only where they communicate status — never decoratively, never all four at once on one screen.
+- No gradients, neon, glassmorphism, particle backgrounds, 3D, or heavy shadows. Thin `1px solid` borders, 6–8px radius.
+- Typography: Inter, restrained sizes (page title 20–24px down to metadata 11–12px). Hierarchy comes from weight, not color.
+- Never communicate state through color alone — pair every status color with a label or icon (see `components/ui/StatusBadge.tsx`).
+- Every page needs a real empty state (see `components/ui/EmptyState.tsx`) — never a blank pane.
+- Animation: fade/slide/status-transition only, nothing constant or flashy.
+
+## Folder structure
+
+```
+docs/            claude.md, architecture.md, context.md, project.md, source diagrams
+backend/         FastAPI service
+  app/
+    api/routes/            HTTP endpoints — one file per sidebar section
+    models/                 SQLModel tables (project.md §39-44)
+    perception/             Perception Layer            (architecture.md §1 layer 2)
+    judgment/                Judgment & Intelligence Core / Jev (layer 3)
+    decision_engine/        Analyze → Plan → Evaluate → Choose Action (layer 4)
+    agents/                  Orchestrator + 5 specialist agents (layer 5)
+    knowledge/              Knowledge & Tools retrieval  (layer 6)
+    memory/                  Context & Memory Engine, Solvable Rulebook (§2.6)
+    human_intelligence/     Guide / Approve / Correct / Override / Teach
+    learning/               Learning Signals             (layer 9)
+    tools/                   Simulated enterprise APIs   (project.md §38)
+    services/               Cross-cutting orchestration (ticket_service, demo_service)
+  data/                     Deterministic seed/mock data (project.md §70: internally consistent)
+  tests/
+frontend/        Next.js (App Router, TypeScript, Tailwind)
+  app/                      Routes — one folder per sidebar section
+  components/
+    layout/                  Sidebar, TopBar, AppShell
+    ui/                       Design-system primitives
+    tickets/ agents/ customers/ knowledge/ tools/ activity/
+    human-intelligence/ learning/   Domain components  (project.md §83)
+  features/                 Per-domain TypeScript types, mirroring backend/app/models
+  lib/                       constants.ts (shared vocab), api.ts (fetch client), utils.ts
+```
+
+This intentionally adapts `project.md` §82's flatter suggestion (`/backend/services/{ticket,agent,knowledge,tool,human,learning}_service`) into the fuller architecture's own module names, because the diagrams — not §82 — are the priority. `services/` is kept as a thin cross-cutting layer on top of the modules above; it is not where business logic should accumulate.
+
+## Engineering rules
+
+- **Ticket state lives in one place**: `backend/app/services/ticket_service.py`. Routes and other services read/write tickets through it, never by touching persistence directly (project.md §58).
+- **Business logic stays off the frontend.** Components render state; they don't decide it. If a component needs a decision (should this action be auto-approved?), that decision was already made by the backend.
+- **Mocked services must stay obviously mocked.** `backend/app/tools/mock_apis.py` (and its callers) must never be described in UI copy or docs as a real payment/CRM/shipping integration (project.md §86-87).
+- **State consistency**: a human action (Approve/Correct/Override/Teach) must (1) write the corresponding row, (2) update ticket/agent state, (3) be reflected in the activity timeline, and (4) be capable of emitting a learning signal — a UI button that only animates without changing backend state is a bug (project.md §71).
+- **Data realism**: all mock data comes from `backend/data/seed_data.py`. IDs referenced in a ticket (customer, order, refund) must stay consistent everywhere they're shown — never generate random IDs inline (project.md §70).
+- **No production-scale ambition creeping into the prototype**: no real CRM/payment/banking/shipping integrations, no production auth, no real RL training claims, no voice/email/social ingestion. See `[[context]]`, "Project stage," for the full list.
+- **Prototype must run without a real LLM.** Anything that calls an LLM (`backend/app/perception`, `backend/app/judgment`) needs a deterministic fallback path when `Settings.llm_api_key` is unset.
+
+## Before calling something done
+
+- `cd backend && .venv/Scripts/python -m pytest -q` should pass.
+- `cd frontend && npm run build` should succeed with no type errors.
+- If you touched UI, actually run both dev servers (`uvicorn app.main:app --reload` in `backend/`, `npm run dev` in `frontend/`) and look at the page — don't rely on the build passing alone.
+- Re-check the vocabulary list above — a new status/state/label string is almost always a mistake.

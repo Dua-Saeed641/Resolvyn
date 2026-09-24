@@ -6,12 +6,15 @@ from typing import Optional
 
 from sqlmodel import Field, SQLModel
 
+from app.utils import utcnow
+
 
 class HumanAction(SQLModel, table=True):
     human_event_id: Optional[int] = Field(default=None, primary_key=True)
-    ticket_id: str = Field(foreign_key="ticket.ticket_id")
+    ticket_id: Optional[str] = Field(default=None, index=True)  # None for org-wide Teach actions
     event_type: str
     previous_ai_action: Optional[str] = None
     human_action: str
     reason: Optional[str] = None
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    operator: str = "Operator 01"
+    timestamp: datetime = Field(default_factory=utcnow)

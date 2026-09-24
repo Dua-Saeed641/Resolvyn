@@ -1,0 +1,53 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Epsilon engine config for Resolvyn (RTX A2000 4 GB VRAM, 16 GB RAM, i7-11850H)
+#
+# Paths are relative to this file's folder (D:\resolvyn\engine).
+#
+# Tier plan
+#   fast : Qwen3.5-4B Q4_K_M   fully on GPU  -> live voice brain + Jev
+#   deep : Qwen3.8-27B IQ2_XXS CPU / RAM     -> background only (detailed
+#          ticket summaries, first-time-bug analysis). ~9 GB of RAM while loaded;
+#          unloaded automatically after `deep_idle_timeout` seconds.
+#   The 27B does NOT fit in 4 GB VRAM and runs at a few tokens/sec on CPU, so it
+#   is never in the real-time path of a call.
+#
+# llama-server is the modern llama.cpp Windows CUDA build in ./bin (the old
+# BitNet-era build in ./BitNet cannot load Qwen3.5 / Qwen3.8 — they use the
+# Gated-DeltaNet hybrid architecture that landed in llama.cpp in 2026).
+# ─────────────────────────────────────────────────────────────────────────────
+
+llama_server_bin: "bin/llama-server.exe"
+
+models:
+  fast:
+    path:        "models/Qwen_Qwen3.5-4B-Q4_K_M.gguf"
+    gpu_layers:  99
+    context_len: 8192
+    cpu_threads: 4
+    max_tokens:  200
+    temperature: 0.6
+    extra_args:  ["-np", "2", "-fa", "on"]
+    description: "Qwen3.5-4B Q4_K_M — live call brain + Jev judgment (GPU)"
+
+  deep:
+    path:        "models/Qwen3.8-27B-IQ2_XXS.gguf"
+    gpu_layers:  0
+    context_len: 4096
+    cpu_threads: 8
+    max_tokens:  400
+    temperature: 0.3
+    extra_args:  ["-np", "1"]
+    description: "Qwen3.8-27B IQ2_XXS — background summaries and analysis (CPU/RAM)"
+
+ports:
+  fast: 8088
+  balanced: 8089
+  deep: 8090
+
+# Unload timers (seconds)
+idle_timeout: 900        # fast tier: keep warm for 15 min between calls
+deep_idle_timeout: 120   # deep tier: free ~9 GB RAM two minutes after last job
+
+cpu_threads: 4
+log_dir: "logs"
+debug: false

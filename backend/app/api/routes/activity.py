@@ -1,14 +1,12 @@
-"""Global system activity/event stream — project.md §14, §37.
-
-Not yet implemented: needs the agent_event model + a real or simulated
-event source (see app/services and docs/architecture.md §8, Event Stream).
-"""
+"""System-wide event stream (project.md §14, §37)."""
 
 from fastapi import APIRouter
+
+from app.services import ticket_service
 
 router = APIRouter()
 
 
 @router.get("")
-def list_activity():
-    return []
+def recent(limit: int = 150):
+    return ticket_service.recent_events(min(limit, 500))

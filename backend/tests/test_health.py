@@ -1,18 +1,21 @@
-from fastapi.testclient import TestClient
-
-from app.main import app
-
-client = TestClient(app)
-
-
-def test_health():
+def test_health(client):
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.json()["status"] == "operational"
+    body = response.json()
+    assert body["status"] == "operational"
+    assert body["llm_ready"] is False  # tests run with no model on purpose
 
 
-def test_list_tickets():
-    response = client.get("/api/tickets")
-    assert response.status_code == 200
-    tickets = response.json()
-    assert any(t["ticket_id"] == "PH-1042" for t in tickets)
+def test_seeded_history_and_knowledge(client):
+    tickets = client.get("/api/tickets").json()
+    assert any(t["ticket_id"] == "PH-0911" for t in tickets)
+    docs = client.get("/api/knowledge").json()
+    assert len(docs) >= 7
+    stats = client.get("/api/knowledge/stats").json()
+    assert stats["chunks"] > 30 and stats["graph"]["nodes"] > 50
+
+
+def test_system_status(client):
+    s = client.get("/api/system").json()
+    assert s["agent"] == "Riya"
+    assert s["llm"]["live_ready"] is False

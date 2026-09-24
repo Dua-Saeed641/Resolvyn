@@ -1,30 +1,15 @@
 # Resolvyn frontend
 
-Next.js (App Router, TypeScript, Tailwind) dashboard implementing the prototype UI spec in
-[`../docs/project.md`](../docs/project.md), on top of the architecture in
-[`../docs/architecture.md`](../docs/architecture.md). See [`../docs/claude.md`](../docs/claude.md)
-for the design-system and vocabulary rules this codebase must follow.
+Next.js 14 (App Router) + Tailwind. Monochrome design system from `docs/project.md`.
 
-## Run locally
+* `/`  customer side: voice call or chat with the agent, live ticket, ticket history
+* `/ops/*`  team console: overview, tickets (+ live detail workspace), agents, customers, knowledge (ingestion + rulebook by department),
+  memory (knowledge graph), activity, human intelligence, learning signals, analytics, settings
 
-```bash
-cd frontend
+Voice uses the browser's speech recognition (Chrome / Edge) and the backend's `/api/tts`. Real-time data comes from `/ws/ops` (`lib/live.tsx`)
+and `/ws/call` (`lib/useCall.ts`). Components render state; decisions live in the backend.
+
+```
 npm install
-cp .env.local.example .env.local
-npm run dev
-```
-
-Requires the backend running at `http://localhost:8000` (see `../backend/README.md`).
-
-## Layout
-
-```
-app/                 Routes — one folder per sidebar section (project.md §10)
-components/
-  layout/            Sidebar, TopBar, AppShell
-  ui/                 Design-system primitives (StatusBadge, ConfidenceIndicator, MetricCard, ...)
-  tickets/ agents/ customers/ knowledge/ tools/ activity/
-  human-intelligence/ learning/   Domain components (project.md §83)
-features/            Per-domain TypeScript types, mirroring backend/app/models
-lib/                  constants.ts (shared vocabulary), api.ts (fetch client), utils.ts
+npm run build && npm run start      # http://localhost:3000   (backend on :8000)
 ```

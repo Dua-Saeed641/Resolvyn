@@ -1,8 +1,7 @@
 """Aggregates every route module under a single /api prefix.
 
-Route → architecture mapping (docs/architecture.md §3 table):
-tickets/agents/customers/knowledge/activity/human_intelligence/learning/
-analytics/demo each correspond to one sidebar section in project.md §10.
+Route → architecture mapping (docs/architecture.md §3 table): each module is
+one sidebar section on the ops side, plus /system + /tts for the voice channel.
 """
 
 from fastapi import APIRouter
@@ -16,6 +15,7 @@ from app.api.routes import (
     human_intelligence,
     knowledge,
     learning,
+    system,
     tickets,
 )
 
@@ -32,3 +32,4 @@ api_router.include_router(
 api_router.include_router(learning.router, prefix="/learning-signals", tags=["learning"])
 api_router.include_router(analytics.router, prefix="/analytics", tags=["analytics"])
 api_router.include_router(demo.router, prefix="/demo", tags=["demo"])
+api_router.include_router(system.router, tags=["system"])

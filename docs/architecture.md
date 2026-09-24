@@ -221,3 +221,57 @@ Prototype ticket status model: `NEW → ANALYZING → ROUTING → ACTIVE → WAI
 | `backend/demo` | §46–48 of `project.md`, deterministic replay of §2.7's end-to-end trace |
 
 See `[[claude]]` for the actual repository folder layout and the engineering rules that keep the prototype from silently drifting away from this architecture.
+
+
+---
+
+## 4. As built
+
+How the diagrams in §2 map to the running system. Everything here is exercised by `backend/tests` and by
+`backend/scripts/e2e_call.py`.
+
+### Call flow (resolvyn-system-flow.png → code)
+
+| Diagram | Implementation |
+|---|---|
+| Channels: Call / Text | `/ws/call` WebSocket (browser voice or chat) and `/ws/telephony/twilio` (real phone calls, Twilio Media Streams, 8 kHz mu-law). Speech is Gnani: streaming STT with VAD in, TTS out (mp3 for browsers, mu-law for phones), with edge-tts and the browser voice as fallbacks. Email/Audio-file ingestion is not built |
+| "Is the person really talking to the agent?" | `judgment/jev.py::addressee` (rules) plus an escape hatch: the model may answer `[SIDE_TALK]`. Side-talk is stored as `kind=side_talk`, kept out of the ticket body, and the agent stays silent |
+| Languages | English and Hindi/Hinglish: language detection in `perception/`, Gnani STT in en-IN / hi-IN and female Indian-accent voices; the phone recogniser re-opens in Hindi when the caller switches language |
+| LLM in the chain + memory | `services/conversation.py` pipeline → `memory/memory_engine.py` (vector + knowledge graph) → `decision_engine/` |
+| Instant-resolve | Decision path `INSTANT`: answered from SOPs / rulebook / past queries, no human, no ticket routing |
+| Escalate in real time | `conversation.escalate()`: asks for basic details, assigns a team member, writes the context doc, syncs Jira (simulated) — before the call ends |
+| Agent departments | `agents/`: Technical, Billing, Account, Order, Other, chosen from Jev's judgment of the caller's query |
+| Ticket in the customer's dashboard | customer side of the web app (`/`) shows a customer-safe view over the same WebSocket |
+| Ticket monitored in Jira/Zoho | `integrations/jira_sim.py` — simulated issue keys, workflow mirror, autonomous monitor loop and SLA warning |
+| Context engine + one-line summary (team side only) | `context_engine/`: baseline note after every turn, model-written note after a short debounce, deep 27B note after the call |
+| Human intervention / Human team | `human_intelligence/`: Guide, Approve, Correct, Override (take over, speak to the caller), Teach |
+
+### Memory and rulebook (memory-rulebook-detail.png → code)
+
+* Two memories, each vector + knowledge graph: `store=common` (business logic, SOPs, product DB, solved past queries, taught rules)
+  and `store=first_time_bug`.
+* Vector half: sparse TF-IDF index with idf-weighted coverage (`memory/vector_store.py`). Chosen deliberately: the GPU belongs to the
+  language model. The class is small enough to swap for dense embeddings later.
+* Graph half: `KgNode`/`KgEdge`, built automatically from every ingested document and every solved ticket (`memory/kg.py`).
+* "JEV written query": `jev.write_query()`. Retrieval scores decide the path: `>= 0.50` known, `< 0.28` first-time bug, in between the model
+  runs a grounding check ("do these passages answer *this* problem?"). An unfamiliar error code that no passage mentions is never "covered".
+* First-time bug: manager sees "A FIRST TIME BUG HAS BEEN REPORTED — HERE'S MORE DETAIL, PLEASE ENTER YOUR SUGGESTION"; the suggestion is written
+  into the Solvable Rulebook (per department), attached to the bug memory, and spoken to the live caller by the AI. The next caller with the same
+  problem is answered from memory.
+* The rulebook is divided per department agent; ingestion (`/api/knowledge/ingest`, Knowledge page) classifies each section to a department.
+
+### Models
+
+Local, through the epsilon engine (`engine/`): Qwen3.5-4B on the GPU for the live call and Jev; Qwen3.8-27B (IQ2_XXS) on CPU as the
+background "deep" tier. Optional free cloud model (any OpenAI-compatible API, e.g. Groq / Gemini / OpenRouter) via `CLOUD_LLM_*`.
+
+### Honest limits
+
+* The enterprise APIs, Jira/Zoho and Confluence are simulations, labelled as such in the UI.
+* Learning signals are recorded events; nothing is retrained. Behaviour changes because the rulebook changes.
+* Voice: with a Gnani key, speech recognition is server-side (the browser streams microphone audio) and works in any browser and on phone calls; without
+  one, Chrome/Edge speech recognition and edge-tts / the browser voice are used, and chat works everywhere. Trial Gnani keys are rate-limited, so replies
+  are merged into at most two TTS requests and stock phrases are cached on disk. Echo is handled by browser AEC plus a text-overlap guard; headphones are still best.
+* The phone bridge is verified against a simulated Twilio media stream (`backend/scripts/sim_phone_call.py`) and unit tests; it has not been exercised
+  through a real Twilio number in this repository.
+* The 27B does not run in the real-time path: about 1.3 tokens/second on this hardware.

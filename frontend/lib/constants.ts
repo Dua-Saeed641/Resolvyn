@@ -37,6 +37,21 @@ export type Sentiment = (typeof SENTIMENTS)[number];
 export const HUMAN_ACTIONS = ["GUIDE", "APPROVE", "CORRECT", "OVERRIDE", "TEACH"] as const;
 export type HumanActionType = (typeof HUMAN_ACTIONS)[number];
 
+/**
+ * backend/app/models/human_action.py stores the noun form of each action
+ * (GUIDANCE/APPROVAL/CORRECTION/OVERRIDE/TEACHING, project.md §43) while
+ * the UI buttons use the verb form (HUMAN_ACTIONS above, project.md §22).
+ * This maps a recorded event's `event_type` back to the same verb label
+ * shown on the button that created it.
+ */
+export const EVENT_TYPE_LABEL: Record<string, string> = {
+  GUIDANCE: "Guide",
+  APPROVAL: "Approve",
+  CORRECTION: "Correct",
+  OVERRIDE: "Override",
+  TEACHING: "Teach",
+};
+
 /** project.md §35: prototype UI thresholds, not model-calibration claims. */
 export function confidenceLabel(confidence: number): "High" | "Medium" | "Low" {
   if (confidence >= 90) return "High";
@@ -54,4 +69,20 @@ export const STATUS_COLOR: Record<TicketStatus, "success" | "warning" | "danger"
   VERIFYING: "muted",
   RESOLVED: "success",
   FAILED: "danger",
+};
+
+/** spec §37: only HIGH/CRITICAL get strong visual emphasis. */
+export const PRIORITY_COLOR: Record<Priority, "danger" | "warning" | "muted"> = {
+  LOW: "muted",
+  MEDIUM: "muted",
+  HIGH: "warning",
+  CRITICAL: "danger",
+};
+
+export const HUMAN_ACTION_LABELS: Record<HumanActionType, string> = {
+  GUIDE: "Guide",
+  APPROVE: "Approve",
+  CORRECT: "Correct",
+  OVERRIDE: "Override",
+  TEACH: "Teach",
 };

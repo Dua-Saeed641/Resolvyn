@@ -4,6 +4,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import type { Agent } from "@/features/agents/types";
 import { api } from "@/lib/api";
 
+/** spec §20: agent roster — five specialists, no fabricated benchmarks. */
 export default async function AgentsPage() {
   const agents = await api.get<Agent[]>("/agents").catch(() => [] as Agent[]);
 

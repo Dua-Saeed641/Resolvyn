@@ -13,8 +13,12 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  // This is a live operational dashboard (docs/architecture.md §3) — Next.js's
+  // default fetch caching would otherwise silently serve stale ticket/agent
+  // state after a demo step or human action. Every request must be fresh.
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
+    cache: "no-store",
     headers: { "Content-Type": "application/json", ...init?.headers },
   });
   if (!response.ok) {

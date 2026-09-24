@@ -2,6 +2,7 @@
  * Single source of truth for app-wide vocabulary (docs/project.md §33-36).
  * Every status/priority/confidence label in the UI must come from here —
  * do not inline these strings or invent new states elsewhere (docs/claude.md).
+ * Keep in sync with backend/app/vocab.py.
  */
 
 export const TICKET_STATUSES = [
@@ -34,6 +35,7 @@ export type Priority = (typeof PRIORITIES)[number];
 export const SENTIMENTS = ["Positive", "Neutral", "Frustrated", "Angry"] as const;
 export type Sentiment = (typeof SENTIMENTS)[number];
 
+/** Always all five, always this order (docs/claude.md). */
 export const HUMAN_ACTIONS = ["GUIDE", "APPROVE", "CORRECT", "OVERRIDE", "TEACH"] as const;
 export type HumanActionType = (typeof HUMAN_ACTIONS)[number];
 
@@ -52,8 +54,13 @@ export const EVENT_TYPE_LABEL: Record<string, string> = {
   TEACHING: "Teach",
 };
 
+/** The department agents chosen "on the basis of the user query" (docs/architecture.md §2.3). */
+export const DEPARTMENTS = ["Technical", "Billing", "Account", "Order", "Other"] as const;
+export type Department = (typeof DEPARTMENTS)[number];
+
 /** project.md §35: prototype UI thresholds, not model-calibration claims. */
-export function confidenceLabel(confidence: number): "High" | "Medium" | "Low" {
+export function confidenceLabel(confidence: number | null | undefined): "High" | "Medium" | "Low" {
+  if (confidence == null) return "Low";
   if (confidence >= 90) return "High";
   if (confidence >= 75) return "Medium";
   return "Low";
@@ -86,3 +93,23 @@ export const HUMAN_ACTION_LABELS: Record<HumanActionType, string> = {
   OVERRIDE: "Override",
   TEACH: "Teach",
 };
+
+export const AGENT_STATE_COLOR: Record<AgentState, "success" | "warning" | "danger" | "info" | "muted"> = {
+  IDLE: "muted",
+  ANALYZING: "info",
+  RETRIEVING: "info",
+  ACTING: "info",
+  VERIFYING: "info",
+  WAITING: "warning",
+  COMPLETED: "success",
+  ERROR: "danger",
+};
+
+/** Steps a caller sees on their ticket (friendly wording, same underlying states). */
+export const CUSTOMER_STEPS: { key: TicketStatus[]; label: string }[] = [
+  { key: ["NEW"], label: "Ticket created" },
+  { key: ["ANALYZING", "ROUTING"], label: "Understanding your request" },
+  { key: ["ACTIVE", "WAITING_FOR_HUMAN"], label: "Being handled" },
+  { key: ["VERIFYING"], label: "Verifying" },
+  { key: ["RESOLVED"], label: "Resolved" },
+];

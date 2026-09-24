@@ -20,14 +20,13 @@ If you're about to add a feature, a page, or a backend module and can't tell whi
 ## Vocabulary — do not invent new terms
 
 These are the only values the UI and API may use. They live in `frontend/lib/constants.ts` on the frontend; keep backend models (`backend/app/models/`) in sync with it.
-
 - **Ticket status**: `NEW, ANALYZING, ROUTING, ACTIVE, WAITING_FOR_HUMAN, VERIFYING, RESOLVED, FAILED`
 - **Agent state**: `IDLE, ANALYZING, RETRIEVING, ACTING, VERIFYING, WAITING, COMPLETED, ERROR`
 - **Priority**: `LOW, MEDIUM, HIGH, CRITICAL` — color only on HIGH/CRITICAL
 - **Sentiment**: `Positive, Neutral, Frustrated, Angry` — no emojis, not visually dominant
 - **Confidence bands**: High ≥90%, Medium 75–89%, Low <75% (UI thresholds only, not calibration claims)
 - **Human actions**: `GUIDE, APPROVE, CORRECT, OVERRIDE, TEACH` — always all five, always this order, never presented as "just an escalation"
-- **Specialist agents** (prototype roster, `docs/architecture.md` §2.3/§3): Billing, Account, Technical, Order, Logistics
+- **Department agents** (`docs/architecture.md` §2.3 — the flow diagram is ground truth): Technical, Billing, Account, Order, Other. (An earlier prototype roster listed Logistics; shipping/tracking belongs to the Order agent, and "Other" is the catch-all from the diagram.)
 
 ## Design system (`docs/project.md` §6-9, §51-57, §92-94)
 
@@ -39,6 +38,10 @@ These are the only values the UI and API may use. They live in `frontend/lib/con
 - Animation: fade/slide/status-transition only, nothing constant or flashy.
 
 ## Folder structure
+
+`engine/` is a copy of the author's epsilon engine (see `engine/README.md`): `llama-server` process management for the local
+Qwen models. Resolvyn's backend reaches models only through `backend/app/llm/`.
+
 
 ```
 docs/            claude.md, architecture.md, context.md, project.md, source diagrams
@@ -54,7 +57,11 @@ backend/         FastAPI service
     memory/                  Context & Memory Engine, Solvable Rulebook (§2.6)
     human_intelligence/     Guide / Approve / Correct / Override / Teach
     learning/               Learning Signals             (layer 9)
-    tools/                   Simulated enterprise APIs   (project.md §38)
+    tools/                   Simulated enterprise APIs + tool_service (persisted NOT_STARTED→WAITING→COMPLETED/FAILED)
+    llm/                     The only door to a model: epsilon engine, optional free cloud LLM, fallback
+    voice/                   Gnani STT/TTS (rate-limit aware, disk-cached), edge-tts fallback, mu-law, spoken-text humaniser, fillers, sentence streamer
+    context_engine/          Live one-line + detailed ticket notes, context doc, deep (27B) analysis
+    integrations/            Simulated Jira/Zoho sync + autonomous monitor loop
     services/               Cross-cutting orchestration (ticket_service, demo_service)
   data/                     Deterministic seed/mock data (project.md §70: internally consistent)
   tests/
@@ -79,11 +86,13 @@ This intentionally adapts `project.md` §82's flatter suggestion (`/backend/serv
 - **State consistency**: a human action (Approve/Correct/Override/Teach) must (1) write the corresponding row, (2) update ticket/agent state, (3) be reflected in the activity timeline, and (4) be capable of emitting a learning signal — a UI button that only animates without changing backend state is a bug (project.md §71).
 - **Data realism**: all mock data comes from `backend/data/seed_data.py`. IDs referenced in a ticket (customer, order, refund) must stay consistent everywhere they're shown — never generate random IDs inline (project.md §70).
 - **No production-scale ambition creeping into the prototype**: no real CRM/payment/banking/shipping integrations, no production auth, no real RL training claims, no voice/email/social ingestion. See `[[context]]`, "Project stage," for the full list.
-- **Prototype must run without a real LLM.** Anything that calls an LLM (`backend/app/perception`, `backend/app/judgment`) needs a deterministic fallback path when `Settings.llm_api_key` is unset.
+- **Prototype must run without a real LLM.** Anything that calls a model goes through `backend/app/llm` and needs a deterministic fallback (Jev has rules, agents have playbooks with a `fallback` line, the context engine writes a heuristic note first). `ENGINE_ENABLED=false` plus no cloud key must leave every flow working — `pytest` runs exactly that way.
+- **The model speaks, the playbook decides.** A department agent runs tools and returns verified facts (`Plan.facts`); the language model only phrases them (`agents/persona.py`). Never let the persona invent amounts, limits, policies, or claim an action that no completed tool call verified.
+- **Humans never wait on the model, and the model never waits on background work.** A new caller utterance cancels in-flight summaries; the 27B deep tier only runs when no call is active; finalisation (`_spawn`) must survive a hang-up.
 
 ## Before calling something done
 
-- `cd backend && .venv/Scripts/python -m pytest -q` should pass.
+- `cd backend && .venv/Scripts/python -m pytest -q` should pass (no GPU needed; it runs the real WebSocket pipeline on the deterministic path).
 - `cd frontend && npm run build` should succeed with no type errors.
-- If you touched UI, actually run both dev servers (`uvicorn app.main:app --reload` in `backend/`, `npm run dev` in `frontend/`) and look at the page — don't rely on the build passing alone.
+- If you touched UI, actually run it (`.\start.ps1`, or `uvicorn app.main:app` in `backend/` and `npm run start` in `frontend/`) and look at both sides: the customer side (`/`) and the team console (`/ops`). Don't rely on the build passing alone. Don't run `next build` while `next dev` is serving the same `.next` folder.
 - Re-check the vocabulary list above — a new status/state/label string is almost always a mistake.

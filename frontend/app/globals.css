@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 /* project.md §6: base palette as CSS custom properties, for any code that
-   can't reach Tailwind's config (e.g. inline SVG charts). Keep in sync
+   cannot reach Tailwind's config (e.g. inline SVG charts). Keep in sync
    with tailwind.config.ts. */
 :root {
   --bg-primary: #050505;
@@ -19,7 +19,55 @@
   --text-max: #ffffff;
 }
 
+html {
+  color-scheme: dark;
+}
+
 body {
   background: var(--bg-primary);
   color: var(--text-body);
+}
+
+/* project.md §53: subtle motion only (fade / slide), never constant. */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-in {
+  animation: fade-in 180ms ease-out both;
+}
+
+@keyframes bar {
+  0%,
+  100% {
+    transform: scaleY(0.25);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+.voice-bar {
+  transform-origin: center;
+  animation: bar 900ms ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in,
+  .animate-pulse,
+  .animate-spin,
+  .voice-bar {
+    animation: none !important;
+  }
+}
+
+/* thin, quiet scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2e2e2e transparent;
 }

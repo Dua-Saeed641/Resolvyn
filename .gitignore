@@ -52,3 +52,6 @@ engine/models/
 engine/logs/
 engine/BitNet/
 *.gguf
+
+# Orchestration layer (agents/) — checkpoint DB is runtime state, not source
+agents/data/*.db*

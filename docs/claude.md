@@ -42,9 +42,15 @@ These are the only values the UI and API may use. They live in `frontend/lib/con
 `engine/` is a copy of the author's epsilon engine (see `engine/README.md`): `llama-server` process management for the local
 Qwen models. Resolvyn's backend reaches models only through `backend/app/llm/`.
 
+`agents/` (repo root, sibling to `backend/`/`frontend/`/`engine/`) is the LangGraph-based ticket
+orchestration layer — a standalone package, deliberately separate from `backend/app/services/conversation.py`
+(the live per-call turn loop) rather than a replacement for it. See `agents/README.md` for the graph,
+the human-gate/interrupt design, and why it lives in its own folder. Only `backend/app/api/routes/orchestration.py`
+(an 11-line bridge) and one `include_router` line in `backend/app/api/router.py` connect it to the backend.
 
 ```
 docs/            claude.md, architecture.md, context.md, project.md, source diagrams
+agents/          Standalone LangGraph orchestration layer — see agents/README.md
 backend/         FastAPI service
   app/
     api/routes/            HTTP endpoints — one file per sidebar section

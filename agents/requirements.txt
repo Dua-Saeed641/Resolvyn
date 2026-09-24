@@ -1,0 +1,9 @@
+# Installed into backend/.venv (the same interpreter that runs the backend
+# process — see agents/README.md §5, "Why one venv"). Not a separate
+# environment: `agents/` imports `app.*` from backend, so it must run
+# under the same interpreter backend/requirements.txt already provisions.
+#
+#   cd backend && .venv/Scripts/python -m pip install -r ../agents/requirements.txt
+#
+langgraph==1.2.12
+langgraph-checkpoint-sqlite==3.1.1

@@ -15,6 +15,7 @@ from app.api.routes import (
     human_intelligence,
     knowledge,
     learning,
+    orchestration,
     system,
     tickets,
 )
@@ -32,4 +33,5 @@ api_router.include_router(
 api_router.include_router(learning.router, prefix="/learning-signals", tags=["learning"])
 api_router.include_router(analytics.router, prefix="/analytics", tags=["analytics"])
 api_router.include_router(demo.router, prefix="/demo", tags=["demo"])
+api_router.include_router(orchestration.router, tags=["orchestration"])
 api_router.include_router(system.router, tags=["system"])

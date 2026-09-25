@@ -70,6 +70,7 @@ class ResumeRequest(BaseModel):
     topic: str | None = None
     knowledge: str | None = None
     reason: str | None = None
+    department: str | None = None  # optional CORRECT/OVERRIDE reroute target (agents/swarm_router.py's DEPARTMENTS)
 
 
 @router.post("/tickets/{ticket_id}/resume")

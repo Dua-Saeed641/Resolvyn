@@ -14,6 +14,7 @@ const NAV_GROUPS = [
     items: [
       { label: "Tickets", href: "/ops/tickets" },
       { label: "Agents", href: "/ops/agents" },
+      { label: "Routing", href: "/ops/routing" },
       { label: "Customers", href: "/ops/customers" },
       { label: "Knowledge", href: "/ops/knowledge" },
       { label: "Business data", href: "/ops/business-data" },

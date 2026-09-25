@@ -30,8 +30,9 @@ from app.memory.memory_engine import memory
 from app.models import Customer, FirstTimeBug, HumanAction
 from app.services import ticket_service as tickets
 from app.utils import utcnow
-from app.vocab import HUMAN_EVENT_FOR_ACTION
+from app.vocab import DEPARTMENTS, HUMAN_EVENT_FOR_ACTION
 
+from agents import swarm_router
 from agents.engine_provider import DeterministicEngineProvider, judgment_dict, judgment_from_dict
 from agents.state import ResolvynState
 
@@ -162,18 +163,56 @@ async def run_decision(state: ResolvynState) -> dict:
     }
 
 
-# ── 5. routing ───────────────────────────────────────────────────────────────
+# ── 5. routing — FruitFlySwarmRouter (agents/swarm_router.py) ────────────────
 
 
 def route_agent(state: ResolvynState) -> dict:
-    j = judgment_from_dict(state["judgment"])
-    department = j.department
-    reason = f"{department} desk — {state['decision_reason']}"
-    orchestrator.set_state(department, "ANALYZING", state["ticket_id"], "Routed by the orchestration graph")
-    tickets.update(state["ticket_id"], assigned_agent=department, status="ROUTING")
-    tickets.add_event(state["ticket_id"], "Orchestrator", "AGENT_ASSIGNED", f"{department} Agent assigned",
-                      status="COMPLETED", public=f"Routed to our {department} team")
-    return {"selected_agent": department, "routing_reason": reason, "trace": ["ROUTING_COMPLETED"]}
+    """Bio-inspired (not biological — see agents/swarm_router.py) mixture-of-
+    experts routing stage: every department competes on a cheap activation
+    score; the winner is the only one that becomes active. Replaces trusting
+    Jev's single department pick blindly — Jev's own judgment is still one of
+    the swarm's inputs (via the same INTENTS table), not bypassed.
+    """
+    human_action = state.get("human_action") or {}
+    # A GUIDE resume on an ambiguous-routing gate re-enters here (agents/graph.py's
+    # _route_after_human_gate) with the human's clarification folded into the text.
+    guidance = human_action.get("guidance") if human_action.get("action") == "GUIDE" else None
+    scoring_text = f"{state['text']} {guidance}" if guidance else state["text"]
+    # A TEACH resume also loops back through here (via retrieve_context/decision):
+    # a human just taught a fix for this exact ticket, so pausing *again* for
+    # "which desk?" would be a second, redundant human interruption in one turn —
+    # take the swarm's top pick even if the underlying issue is inherently hard
+    # to keyword-match (e.g. a genuinely novel first-time bug with no domain
+    # vocabulary at all), rather than re-gating on ambiguity here.
+    just_taught = human_action.get("action") == "TEACH"
+
+    result = swarm_router.evaluate(state["ticket_id"], text=scoring_text)
+    activations = swarm_router.to_dict(result)["candidates"]
+
+    if result.ambiguous and not just_taught:
+        tickets.update(state["ticket_id"], assigned_agent=result.winner, status="WAITING_FOR_HUMAN")
+        tickets.add_event(state["ticket_id"], "Orchestrator", "AGENT_ASSIGNED",
+                          f"Routing is ambiguous — {result.winner} narrowly leads {result.runner_up}",
+                          status="WAITING", meta={"swarm": swarm_router.to_dict(result)},
+                          public="Reviewing which team can help with this")
+        return {
+            "selected_agent": result.winner, "routing_reason": result.routing_reason,
+            "swarm_activations": activations, "swarm_winner": result.winner, "swarm_runner_up": result.runner_up,
+            "swarm_activation_gap": result.activation_gap, "swarm_ambiguous": True,
+            "human_gate_required": True, "human_gate_reason": "ambiguous_routing", "trace": ["ROUTING_AMBIGUOUS"],
+        }
+
+    orchestrator.set_state(result.winner, "ANALYZING", state["ticket_id"], "Routed by the fruit-fly-inspired swarm router")
+    tickets.update(state["ticket_id"], assigned_agent=result.winner, status="ROUTING")
+    tickets.add_event(state["ticket_id"], "Orchestrator", "AGENT_ASSIGNED", f"{result.winner} Agent assigned",
+                      status="COMPLETED", meta={"swarm": swarm_router.to_dict(result)},
+                      public=f"Routed to our {result.winner} team")
+    return {
+        "selected_agent": result.winner, "routing_reason": result.routing_reason,
+        "swarm_activations": activations, "swarm_winner": result.winner, "swarm_runner_up": result.runner_up,
+        "swarm_activation_gap": result.activation_gap, "swarm_ambiguous": False,
+        "human_gate_required": False, "human_gate_reason": None, "trace": ["ROUTING_COMPLETED"],
+    }
 
 
 # ── 6. specialist agent execution ────────────────────────────────────────────
@@ -296,6 +335,9 @@ async def human_gate(state: ResolvynState) -> dict:
         "pending_action_id": state.get("pending_action_id"),
         "bug_id": state.get("bug_id"),
         "decision_path": state.get("decision_path"),
+        "swarm_activations": state.get("swarm_activations"),
+        "swarm_winner": state.get("swarm_winner"),
+        "swarm_runner_up": state.get("swarm_runner_up"),
     }
     resume_value = interrupt(payload) or {}
     action = str(resume_value.get("action", "")).upper()
@@ -306,9 +348,11 @@ async def human_gate(state: ResolvynState) -> dict:
     if action == "APPROVE":
         return await resume_approve(state, bool(resume_value.get("approve", True)), operator, resume_value.get("reason"))
     if action == "CORRECT":
-        return await resume_correct(state, resume_value["correction"], operator, resume_value.get("reason"))
+        return await resume_correct(state, resume_value["correction"], operator, resume_value.get("reason"),
+                                    resume_value.get("department"))
     if action == "OVERRIDE":
-        return await resume_override(state, resume_value.get("decision", ""), operator, resume_value.get("reason"))
+        return await resume_override(state, resume_value.get("decision", ""), operator, resume_value.get("reason"),
+                                     resume_value.get("department"))
     if action == "TEACH":
         return await resume_teach(state, resume_value["topic"], resume_value["knowledge"], operator)
     return {"error": f"unrecognised human action {action!r}", "trace": ["HUMAN_ACTION_RECEIVED"]}
@@ -463,39 +507,87 @@ async def resume_approve(state: ResolvynState, approve: bool, operator: str, rea
     }
 
 
-async def resume_correct(state: ResolvynState, correction: str, operator: str, reason: str | None) -> dict:
+async def resume_correct(state: ResolvynState, correction: str, operator: str, reason: str | None,
+                         department: str | None = None) -> dict:
+    """`department` is optional (spec §26: CORRECT may just fix the AI's plan,
+    or may also reroute it — "if the operator knows Technical but the swarm
+    picked Billing"). The original swarm decision is never erased: it stays on
+    the AGENT_ASSIGNED event this reroutes past, and a "Wrong agent routing"
+    learning signal records AI-vs-human for future routing weight tuning
+    (agents/swarm_router.py's `_historical_signal` reads exactly this).
+    """
     j = judgment_from_dict(state["judgment"])
     ticket = tickets.get(state["ticket_id"])
     previous = (state.get("plan") or {}).get("operation") or ticket.next_step or j.intent
     _log_human_action(state["ticket_id"], "CORRECT", correction, previous=previous, reason=reason, operator=operator)
-    dept = state.get("selected_agent") or "Other"
-    rulebook.add_rule(topic=f"{j.intent} — {str(previous)[:60]}", knowledge=correction, department=dept,
+
+    original_agent = state.get("selected_agent")
+    reroute = bool(department and department in DEPARTMENTS and department != original_agent)
+    dept_for_rulebook = department if reroute else (original_agent or "Other")
+    rulebook.add_rule(topic=f"{j.intent} — {str(previous)[:60]}", knowledge=correction, department=dept_for_rulebook,
                       source="human_correction", ticket_id=state["ticket_id"])
-    tickets.add_event(state["ticket_id"], operator, "HUMAN_CORRECTION", f"Correction: {correction}", status="COMPLETED")
+    tickets.add_event(state["ticket_id"], operator, "HUMAN_CORRECTION", f"Correction: {correction}", status="COMPLETED",
+                      meta={"rerouted_from": original_agent, "rerouted_to": department} if reroute else None)
     sig = learning_service.record(state["ticket_id"], "Human correction", source_event="CORRECTION",
                                   expected=str(previous), observed=correction,
                                   description=reason or "Decision mismatch detected → rulebook updated")
+
+    if reroute:
+        tickets.update(state["ticket_id"], assigned_agent=department, status="ROUTING")
+        if original_agent:
+            orchestrator.set_state(original_agent, "IDLE")
+        orchestrator.set_state(department, "ANALYZING", state["ticket_id"], "Reassigned by human correction")
+        learning_service.record(state["ticket_id"], "Wrong agent routing", source_event="CORRECTION",
+                                expected=original_agent, observed=department,
+                                description=reason or f"Operator corrected routing from {original_agent} to {department}")
+        agent_state = dict(state.get("agent_state") or {})
+        agent_state["awaiting"] = None  # the newly-assigned specialist starts its own plan fresh, not mid-confirmation
+        return {
+            "selected_agent": department, "routing_reason": f"Corrected by {operator} from {original_agent}: {reason or correction}",
+            "agent_state": agent_state, "human_action": {"action": "CORRECT", "correction": correction, "rerouted": True},
+            "human_gate_required": False, "learning_signal_id": sig["signal_id"], "trace": ["HUMAN_ACTION_RECEIVED"],
+        }
+
     plan = Plan(goal="Human-corrected action.", fallback=correction, status="RESOLVED", agent_state="COMPLETED",
                operation="Resolved via human correction", facts=[f"Human correction applied and VERIFIED: {correction}"])
     return {"plan": asdict(plan), "action_verified": True, "human_action": {"action": "CORRECT", "correction": correction},
            "human_gate_required": False, "learning_signal_id": sig["signal_id"], "trace": ["HUMAN_ACTION_RECEIVED"]}
 
 
-async def resume_override(state: ResolvynState, decision: str, operator: str, reason: str | None) -> dict:
+async def resume_override(state: ResolvynState, decision: str, operator: str, reason: str | None,
+                          department: str | None = None) -> dict:
+    """`department` is optional (spec §27): the human keeps full control either
+    way (`handled_by="HUMAN"`), but can also record which desk this really
+    belonged to for the audit trail / future routing weight tuning — the
+    original swarm pick is preserved on the earlier AGENT_ASSIGNED event, never
+    erased."""
     ticket = tickets.get(state["ticket_id"])
     previous = ticket.next_step or (state.get("plan") or {}).get("operation") or ticket.status
     _log_human_action(state["ticket_id"], "OVERRIDE", decision or "Took over", previous=previous, reason=reason, operator=operator)
-    tickets.update(state["ticket_id"], handled_by="HUMAN", needs_human=True, status="ACTIVE", assignee=operator)
+
+    original_agent = state.get("selected_agent")
+    final_agent = department if (department and department in DEPARTMENTS) else original_agent
+    reroute = bool(final_agent and final_agent != original_agent)
+    fields = {"handled_by": "HUMAN", "needs_human": True, "status": "ACTIVE", "assignee": operator}
+    if reroute:
+        fields["assigned_agent"] = final_agent
+    tickets.update(state["ticket_id"], **fields)
     tickets.add_event(state["ticket_id"], operator, "HUMAN_TAKEOVER", f"{operator} took over: {decision}",
-                      status="COMPLETED", public="A team member joined this ticket")
-    if state.get("selected_agent"):
-        orchestrator.set_state(state["selected_agent"], "IDLE")
+                      status="COMPLETED", public="A team member joined this ticket",
+                      meta={"overridden_from": original_agent, "overridden_to": final_agent} if reroute else None)
+    if original_agent:
+        orchestrator.set_state(original_agent, "IDLE")
     sig = learning_service.record(state["ticket_id"], "Human override", source_event="OVERRIDE", expected=str(previous),
                                   observed=decision or "Manual handling", description=reason or "Human took control")
+    if reroute:
+        learning_service.record(state["ticket_id"], "Wrong agent routing", source_event="OVERRIDE",
+                                expected=original_agent, observed=final_agent,
+                                description=reason or f"Operator overrode routing from {original_agent} to {final_agent}")
     plan = Plan(goal="Human took control.", fallback=decision or "A team member is now handling this directly.",
                status="RESOLVED", agent_state="COMPLETED", operation="Resolved by human override",
                facts=[f"Human override applied and VERIFIED: {decision}"] if decision else [])
-    return {"plan": asdict(plan), "action_verified": bool(decision), "human_action": {"action": "OVERRIDE", "decision": decision},
+    return {"plan": asdict(plan), "action_verified": bool(decision), "selected_agent": final_agent,
+           "human_action": {"action": "OVERRIDE", "decision": decision, "department": final_agent},
            "human_gate_required": False, "learning_signal_id": sig["signal_id"], "trace": ["HUMAN_ACTION_RECEIVED"]}
 
 

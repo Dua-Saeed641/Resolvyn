@@ -87,27 +87,30 @@ export default function CustomerPage() {
             </section>
           )}
 
-          <section className="rounded-lg border border-border bg-card" aria-label="Your tickets">
-            <header className="border-b border-border px-4 py-2.5">
-              <h2 className="text-[13px] font-semibold text-text-primary">Your tickets</h2>
-            </header>
+          <section aria-label="Your tickets">
+            <h2 className="mb-2 text-[13px] font-semibold text-text-primary">Your tickets</h2>
             {history.length === 0 ? (
-              <p className="p-4 text-sm text-text-muted">No tickets yet.</p>
+              <p className="rounded-lg border border-dashed border-border bg-card p-4 text-sm text-text-muted">No tickets yet.</p>
             ) : (
-              <ul>
-                {history.slice(0, 8).map((t) => (
-                  <li key={t.ticket_id} className={`flex items-center justify-between gap-3 border-b border-border px-4 py-2.5 text-[13px] last:border-b-0 ${t.ticket_id === currentId ? "bg-card-elevated" : ""}`}>
-                    <span className="min-w-0">
-                      <span className="block truncate text-text-primary">
-                        <span className="mr-2 font-medium">{t.ticket_id}</span>
-                        {t.subject}
-                      </span>
-                      <span className="text-xs text-text-secondary">{fmtDateTime(t.created_at)} · {t.status_label}</span>
-                    </span>
-                    <StatusBadge status={t.status} />
-                  </li>
-                ))}
-              </ul>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {history.slice(0, 8).map((t) => {
+                  const latest = t.timeline[t.timeline.length - 1];
+                  return (
+                    <article
+                      key={t.ticket_id}
+                      className={`rounded-lg border p-3.5 text-[13px] ${t.ticket_id === currentId ? "border-text-secondary bg-card-elevated" : "border-border bg-card"}`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium text-text-primary">{t.ticket_id}</span>
+                        <StatusBadge status={t.status} />
+                      </div>
+                      <p className="mt-1 truncate text-text-body">{t.subject}</p>
+                      <p className="mt-1 truncate text-xs text-text-muted">{latest?.text ?? t.status_label}</p>
+                      <p className="mt-2 text-[11px] text-text-secondary">{fmtDateTime(t.updated_at)}</p>
+                    </article>
+                  );
+                })}
+              </div>
             )}
           </section>
         </div>

@@ -1,13 +1,27 @@
 """Aggregate metrics for the ops dashboard (project.md §12, §66)."""
 
 from collections import Counter
+from datetime import timedelta
 
 from sqlmodel import Session, select
 
 from app.database import engine
 from app.models import FirstTimeBug, HumanAction, LearningSignal, PendingAction, Ticket
 from app.services.sessions import sessions
-from app.utils import as_utc
+from app.utils import as_utc, utcnow
+
+
+def _hourly_volume(tickets: list[Ticket], hours: int = 24) -> list[dict]:
+    """Rolling hourly ticket-creation count for the analytics trend chart — computed
+    fresh from Ticket.created_at every call (no separate time-series table), so it
+    stays genuinely live as new tickets arrive."""
+    now = utcnow()
+    counts = [0] * hours
+    for t in tickets:
+        age_hours = (now - as_utc(t.created_at)).total_seconds() / 3600
+        if 0 <= age_hours < hours:
+            counts[hours - 1 - int(age_hours)] += 1
+    return [{"label": (now - timedelta(hours=hours - 1 - i)).strftime("%H:00"), "count": c} for i, c in enumerate(counts)]
 
 
 def stats() -> dict:
@@ -30,6 +44,7 @@ def stats() -> dict:
     depts = Counter(t.assigned_agent or "Unassigned" for t in tickets)
     by_action = Counter(h.event_type for h in humans)
     paths = Counter(t.resolution_path or "—" for t in tickets)
+    sentiments = Counter(t.sentiment or "Neutral" for t in tickets)
     return {
         "tickets_total": total,
         "active": len(active),
@@ -50,6 +65,8 @@ def stats() -> dict:
         "intents": dict(intents.most_common()),
         "agent_activity": dict(depts.most_common()),
         "paths": dict(paths),
+        "sentiment": dict(sentiments),
+        "volume_by_hour": _hourly_volume(tickets),
         "ai_resolution_rate": round(100 * len(ai_resolved) / len(resolved)) if resolved else None,
     }
 

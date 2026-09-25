@@ -10,6 +10,7 @@ import { KnowledgeSources, ToolCalls, Understanding } from "@/components/ops/AiO
 import { Conversation } from "@/components/ops/Conversation";
 import { FirstTimeBugCard } from "@/components/ops/FirstTimeBugCard";
 import { HumanActionPanel } from "@/components/ops/HumanActionPanel";
+import { SwarmRouting } from "@/components/ops/SwarmRouting";
 import { Timeline } from "@/components/ops/Timeline";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Card, Kv, Skeleton } from "@/components/ui/primitives";
@@ -122,6 +123,9 @@ export default function TicketDetailPage() {
             </Card>
             <Card title="Understanding">
               <Understanding t={t} />
+            </Card>
+            <Card title="Swarm routing" subtitle="Bio-inspired mixture-of-experts (agents/swarm_router.py) — not a biological simulation">
+              <SwarmRouting events={t.events} />
             </Card>
             <Card title="Knowledge used" subtitle="Jev-written query → common memory + first-time-bug memory">
               <KnowledgeSources sources={t.knowledge} />

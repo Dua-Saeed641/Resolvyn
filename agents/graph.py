@@ -3,18 +3,22 @@
     START → perception → judgment → context/memory → decision
       → [ESCALATED]        → handle_escalation ─┐
       → [FIRST_TIME_BUG]   → flag_first_time_bug ┤
-      → [INSTANT | ACTION] → route_agent → execute_agent → (retry | human_gate | verify)
-                                                             │
+      → [INSTANT | ACTION] → route_agent (FruitFlySwarmRouter, agents/swarm_router.py)
+            → [confident]  → execute_agent → (retry | human_gate | verify)
+            → [ambiguous]  → human_gate ─────┐
+                                              │
     human_gate ── interrupt() ── pauses for GUIDE/APPROVE/CORRECT/OVERRIDE/TEACH
-      resume → GUIDE   → execute_agent (retry with the human's context)
+      resume → GUIDE   → route_agent (ambiguous routing: re-score with the human's clarification)
+                        → execute_agent (any other GUIDE: retry with the human's context)
       resume → TEACH   → context/memory (re-evaluate with the new rule)
-      resume → APPROVE/CORRECT/OVERRIDE → verify
+      resume → CORRECT → execute_agent (rerouted to a different department) | verify (same department)
+      resume → APPROVE/OVERRIDE → verify
                                                              │
     verify → [ok] → generate_response → record_outcome → emit_learning_signal → END
            → [fail, retries left] → register_failure → execute_agent
            → [fail, no retries]  → generate_response → record_outcome → emit_learning_signal → END
 
-See agents/README.md §3 for why each edge exists.
+See agents/README.md §3 for why each edge exists, docs/swarm-router.md for the routing stage.
 """
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
@@ -44,13 +48,27 @@ def _route_after_gate_check(state: ResolvynState) -> str:
     return "human_gate" if state.get("human_gate_required") else "verify"
 
 
+def _route_after_swarm(state: ResolvynState) -> str:
+    # Ambiguous routing (agents/swarm_router.py) pauses for a human GUIDE
+    # before any specialist is activated — never a silent guess between two
+    # close candidates.
+    return "human_gate" if state.get("swarm_ambiguous") else "execute_agent"
+
+
 def _route_after_human_gate(state: ResolvynState) -> str:
     action = (state.get("human_action") or {}).get("action")
     if action == "GUIDE":
-        return "execute_agent"
+        # A GUIDE answering an ambiguous-routing gate re-runs the swarm with the
+        # human's clarification folded in (agents/nodes.py's route_agent); any
+        # other GUIDE (missing info mid-task) resumes the same specialist.
+        return "route_agent" if state.get("human_gate_reason") == "ambiguous_routing" else "execute_agent"
     if action == "TEACH":
         return "retrieve_context"
-    if action in ("APPROVE", "CORRECT", "OVERRIDE"):
+    if action == "CORRECT":
+        # A CORRECT that also rerouted the department hands off to the newly
+        # assigned specialist instead of resolving on the correction text alone.
+        return "execute_agent" if (state.get("human_action") or {}).get("rerouted") else "verify"
+    if action in ("APPROVE", "OVERRIDE"):
         return "verify"
     return "record_outcome"  # unrecognised resume payload — still reach a terminal, never hang
 
@@ -93,7 +111,7 @@ def build_graph(checkpointer: BaseCheckpointSaver | None = None):
     g.add_conditional_edges("decision", _route_after_decision,
                             {"handle_escalation": "handle_escalation", "flag_first_time_bug": "flag_first_time_bug",
                              "route_agent": "route_agent"})
-    g.add_edge("route_agent", "execute_agent")
+    g.add_conditional_edges("route_agent", _route_after_swarm, {"human_gate": "human_gate", "execute_agent": "execute_agent"})
     g.add_conditional_edges("execute_agent", _route_after_execute,
                             {"register_failure": "register_failure", "check_human_gate": "check_human_gate"})
     g.add_edge("register_failure", "execute_agent")
@@ -105,7 +123,7 @@ def build_graph(checkpointer: BaseCheckpointSaver | None = None):
 
     g.add_conditional_edges("human_gate", _route_after_human_gate,
                             {"execute_agent": "execute_agent", "retrieve_context": "retrieve_context",
-                             "verify": "verify", "record_outcome": "record_outcome"})
+                             "route_agent": "route_agent", "verify": "verify", "record_outcome": "record_outcome"})
     g.add_conditional_edges("verify", _route_after_verify,
                             {"generate_response": "generate_response", "register_failure": "register_failure"})
     g.add_edge("generate_response", "record_outcome")

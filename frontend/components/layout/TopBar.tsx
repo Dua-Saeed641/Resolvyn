@@ -1,32 +1,37 @@
 "use client";
 
+import { Cpu, Radio } from "lucide-react";
+
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { Badge } from "@/components/ui/badge";
 import { useLive } from "@/lib/live";
 
-/** project.md §11: page title left, system status right. */
+/** Page title on the left; live calls, the language model and the connection on the right. */
 export function TopBar({ title }: { title: string }) {
   const { connected, llm, stats } = useLive();
-  const model = llm?.live_ready ? "Model ready" : llm ? "Model loading" : null;
+  const ready = llm?.live_ready;
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between border-b border-border px-6">
-      <p className="text-sm font-medium text-text-primary">{title}</p>
-      <div className="flex items-center gap-5 text-xs text-text-muted">
+    <header className="flex h-14 shrink-0 items-center justify-between border-b bg-card/80 px-6 backdrop-blur">
+      <h1 className="text-[17px] tracking-tight text-foreground">{title}</h1>
+      <div className="flex items-center gap-2.5">
         {stats ? (
-          <span>
+          <Badge variant={stats.live_calls > 0 ? "info" : "muted"}>
+            <Radio className="h-3 w-3" />
             {stats.live_calls} live call{stats.live_calls === 1 ? "" : "s"}
-          </span>
+          </Badge>
         ) : null}
-        {model ? (
-          <span className="flex items-center gap-1.5" title="Qwen through the epsilon engine">
-            <span className={`h-1.5 w-1.5 rounded-full ${llm?.live_ready ? "bg-success" : "bg-warning"}`} aria-hidden />
-            {model}
-          </span>
+        {llm ? (
+          <Badge variant={ready ? "success" : "warning"} title="Qwen through the epsilon engine, on this machine">
+            <Cpu className="h-3 w-3" />
+            {ready ? "Model ready" : "Model loading"}
+          </Badge>
         ) : null}
-        <span className="flex items-center gap-1.5">
-          <span className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-success" : "bg-danger"}`} aria-hidden />
-          {connected ? "Operational" : "Reconnecting…"}
-        </span>
+        <Badge variant={connected ? "success" : "danger"}>
+          <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden />
+          {connected ? "Operational" : "Reconnecting"}
+        </Badge>
+        <ThemeToggle />
       </div>
     </header>
   );
 }
-

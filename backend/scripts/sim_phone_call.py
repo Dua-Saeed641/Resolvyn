@@ -7,7 +7,7 @@ sends back (mu-law frames) is collected and transcribed with Gnani STT so you ca
   .venv\\Scripts\\python scripts\\sim_phone_call.py --from "+91 98765 74821" --approve \\
       "Hi, I was charged twice for my order" "The order ID is ORD 83921" "Yes please refund the duplicate one" "Thanks, that's all"
 
-The number's last four digits identify the customer (74821 -> 4821 = Aarav Sharma).
+The number's last four digits identify the customer (74821 -> 4821 = Lovekesh Anand).
 """
 
 import argparse

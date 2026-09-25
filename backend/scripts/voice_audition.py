@@ -17,7 +17,7 @@ from app.voice import gnani  # noqa: E402
 from app.voice.tts import tts  # noqa: E402
 
 LINES = [
-    "Hi Aarav! This is Riya from Nova Retail. How can I help you today?",
+    "Hi Lovekesh! This is Riya from Nova Retail. How can I help you today?",
     "Oh no, twice? Ugh, sorry about that. Umm, what's the order ID? It starts with O R D.",
     "Okay, hang on, pulling that up... yeah, I can see it. Two charges, same amount, seconds apart. Want me to reverse the extra one?",
     "Acha, ek second, order ID bataiye, O R D se shuru hota hai.",

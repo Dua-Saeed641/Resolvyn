@@ -69,6 +69,10 @@ IDENTITY_QUESTION = re.compile(
     r"\b(?:are|r) (?:you|u) (?:a |an )?(?:real |actual |live )?(?:person|human|bot|robot|ai|machine|computer|recording)|"
     r"(?:am i|is this) (?:talking|speaking) (?:to|with) (?:a |an )?(?:real |actual )?(?:person|human|bot|robot|ai|machine)|"
     r"(?:real|actual) (?:person|human) or (?:a )?(?:bot|robot|ai|machine)|kya (?:aap|tum) (?:robot|bot|insaan|real)", re.I)
+# "I don't want a manager", "no need to escalate": mentions a person but asks for the opposite.
+NOT_HUMAN = re.compile(
+    r"\b(?:don'?t|do not|dont|no need to|not|never|without|nahi|mat)\b(?:\s+\w+){0,4}?\s+"
+    r"(?:a |an |the |to |any )?(?:manager|human|person|supervisor|escalat\w*|someone else|senior)", re.I)
 PERSONAL_ORDER = re.compile(r"\b(i ordered|i placed|placed an order|my order|my parcel|my package|maine order|ordered something)\b")
 _QUESTION = re.compile(r"\?|^\s*(what|when|where|why|how|can|could|will|would|do|does|is|are)\b", re.I)
 
@@ -153,7 +157,7 @@ def rules_judge(text: str, prior: Judgment | None = None, *, plan: str | None = 
     if j.intent == "General Query" and PERSONAL_ORDER.search(low):
         j.intent, j.department, j.confidence = "Order Issue", "Order", 62
 
-    # A follow-up ("my name is Aarav, order ORD-83921") must not flip the department
+    # A follow-up ("my name is Lovekesh, order ORD-83921") must not flip the department
     # because a weak keyword matched: carry the earlier intent unless evidence is strong.
     if prior and prior.intent != "General Query" and not j.carried and top != prior.intent:
         new_question = top_s >= 1.0 and bool(_QUESTION.search(text)) and len(text.split()) >= 5
@@ -162,7 +166,7 @@ def rules_judge(text: str, prior: Judgment | None = None, *, plan: str | None = 
             j.confidence = max(60, prior.confidence - 4)
 
     j.sentiment = _sentiment(low, prior.sentiment if prior else None)
-    j.wants_human = any(p in low for p in HUMAN_REQUEST) and not IDENTITY_QUESTION.search(low)
+    j.wants_human = any(p in low for p in HUMAN_REQUEST) and not IDENTITY_QUESTION.search(low) and not NOT_HUMAN.search(low)
     j.urgency = "High" if any(w in low for w in URGENCY_HIGH) else ("Medium" if j.sentiment in ("Frustrated", "Angry") else "Low")
     j.yes, j.no, j.done = dialogue_act(text)
 
@@ -264,6 +268,7 @@ async def judge(text: str, *, prior: Judgment | None, history: list[dict], plan:
 
 # ── is the caller talking to the agent? ──────────────────────────────────────
 
+RESUMES = re.compile(r"\b(where were we|as i was saying|i'?m back|sorry about that|haan toh|haan ji bataiye)\b", re.I)
 _VOCATIVE = re.compile(r"^\s*(?:hey\s+|arre\s+|oye\s+)?(mom|mum|mummy|maa|dad|papa|bhai|bhaiya|didi|beta|sis|bro|honey|babe)\b", re.I)
 
 
@@ -283,6 +288,8 @@ def addressee(text: str, *, expecting_answer: bool) -> tuple[str, str]:
     vocative = bool(_VOCATIVE.match(low))
     mentions_other = bool(re.search(r"\b(?:talking|speaking) to (?:my|the|him|her|someone)\b", low))
 
+    if RESUMES.search(low):
+        return "agent", "back on the call after talking to someone else"
     if vocative and not re.search(r"\b(order|refund|payment|account|ticket)\b", low):
         return "other", "addresses a family member"
     if mentions_other and "not you" in low or "wasn't talking to you" in low or "not talking to you" in low:

@@ -12,8 +12,10 @@ from app.api.routes import (
     analytics,
     business,
     customers,
+    email,
     demo,
     human_intelligence,
+    jev,
     knowledge,
     learning,
     orchestration,
@@ -39,3 +41,5 @@ api_router.include_router(demo.router, prefix="/demo", tags=["demo"])
 api_router.include_router(orchestration.router, tags=["orchestration"])
 api_router.include_router(routing.router, prefix="/routing", tags=["routing"])
 api_router.include_router(system.router, tags=["system"])
+api_router.include_router(jev.router, prefix="/jev", tags=["jev"])
+api_router.include_router(email.router, prefix="/email", tags=["email"])

@@ -11,7 +11,7 @@ import { api } from "@/lib/api";
 import { DEPARTMENTS } from "@/lib/constants";
 import { fmtDateTime } from "@/lib/format";
 import { useLive } from "@/lib/live";
-import { cx } from "@/lib/utils";
+import { cx, cn } from "@/lib/utils";
 
 type Hit = { chunk_id: number; title: string; kind: string; store: string; department: string; score: number; via: string; text?: string };
 
@@ -167,10 +167,10 @@ export default function KnowledgePage() {
 
             <div className="mt-5 border-t border-border pt-4">
               <p className="mb-2 text-xs font-medium text-text-primary">Or paste text</p>
-              <input className={cx(inputCls, "mb-2")} placeholder="Title, e.g. Warranty claims SOP" value={paste.title} onChange={(e) => setPaste({ ...paste, title: e.target.value })} />
-              <textarea className={cx(inputCls, "min-h-[96px]")} placeholder="Paste the procedure, policy or product details…" value={paste.text} onChange={(e) => setPaste({ ...paste, text: e.target.value })} />
+              <input className={cn(inputCls, "mb-2")} placeholder="Title, e.g. Warranty claims SOP" value={paste.title} onChange={(e) => setPaste({ ...paste, title: e.target.value })} />
+              <textarea className={cn(inputCls, "min-h-[96px]")} placeholder="Paste the procedure, policy or product details…" value={paste.text} onChange={(e) => setPaste({ ...paste, text: e.target.value })} />
               <div className="mt-2 flex items-center gap-2">
-                <select aria-label="Department for pasted text" className={cx(inputCls, "w-auto")} value={dept2} onChange={(e) => setDept2(e.target.value)}>
+                <select aria-label="Department for pasted text" className={cn(inputCls, "w-auto")} value={dept2} onChange={(e) => setDept2(e.target.value)}>
                   <option>Auto</option>
                   {DEPARTMENTS.map((d) => (
                     <option key={d}>{d}</option>

@@ -5,27 +5,130 @@
 /* project.md §6: base palette as CSS custom properties, for any code that
    cannot reach Tailwind's config (e.g. inline SVG charts). Keep in sync
    with tailwind.config.ts. */
+/* Design tokens (shadcn/ui format: H S% L%). One calm neutral palette, four muted status colours. */
 :root {
-  --bg-primary: #050505;
-  --bg-secondary: #0a0a0a;
-  --card: #111111;
-  --card-elevated: #171717;
-  --border: #222222;
-  --divider: #2e2e2e;
-  --text-secondary: #666666;
-  --text-muted: #999999;
-  --text-body: #d4d4d4;
-  --text-primary: #f5f5f5;
-  --text-max: #ffffff;
+  --radius: 0.75rem;
+  --background: 0 0% 98%;
+  --foreground: 0 0% 5%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 5%;
+  --card-elevated: 0 0% 96%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 5%;
+  --primary: 0 0% 6%;
+  --primary-foreground: 0 0% 98%;
+  --secondary: 0 0% 95%;
+  --secondary-foreground: 0 0% 6%;
+  --muted: 0 0% 95%;
+  --muted-foreground: 0 0% 38%;
+  --accent: 116 45% 94%;
+  --accent-foreground: 0 0% 6%;
+  --destructive: 0 68% 46%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 0 0% 90%;
+  --divider: 0 0% 84%;
+  --input: 0 0% 86%;
+  --ring: 116 60% 38%;
+  --brand: 116 61% 45%;
+  --brand-foreground: 0 0% 4%;
+  --bg-secondary: 0 0% 96%;
+  --text-secondary: 0 0% 50%;
+  --text-muted: 0 0% 38%;
+  --text-body: 0 0% 22%;
+  --text-primary: 0 0% 6%;
+  --text-max: 0 0% 0%;
+  --success: 116 62% 28%;
+  --warning: 32 92% 36%;
+  --danger: 0 68% 46%;
+  --info: 216 66% 46%;
+}
+
+.dark {
+  --background: 120 10% 4%;
+  --foreground: 0 0% 96%;
+  --card: 120 7% 7%;
+  --card-foreground: 0 0% 96%;
+  --card-elevated: 120 6% 10%;
+  --popover: 120 7% 8%;
+  --popover-foreground: 0 0% 96%;
+  --primary: 0 0% 96%;
+  --primary-foreground: 0 0% 6%;
+  --secondary: 120 4% 14%;
+  --secondary-foreground: 0 0% 96%;
+  --muted: 120 4% 12%;
+  --muted-foreground: 0 0% 62%;
+  --accent: 116 26% 14%;
+  --accent-foreground: 0 0% 96%;
+  --destructive: 0 62% 52%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 120 4% 16%;
+  --divider: 120 4% 22%;
+  --input: 120 4% 19%;
+  --ring: 116 62% 52%;
+  --brand: 116 62% 50%;
+  --brand-foreground: 0 0% 4%;
+  --bg-secondary: 120 8% 5%;
+  --text-secondary: 0 0% 46%;
+  --text-muted: 0 0% 62%;
+  --text-body: 0 0% 82%;
+  --text-primary: 0 0% 96%;
+  --text-max: 0 0% 100%;
+  --success: 116 56% 54%;
+  --warning: 38 84% 56%;
+  --danger: 0 66% 60%;
+  --info: 213 78% 64%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display), var(--font-sans), system-ui, sans-serif;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: var(--font-display), var(--font-sans), system-ui, sans-serif;
+  }
+  /* soft film grain, like the banner */
+  .grain::after {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    opacity: 0.09;
+    mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.55 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+  .dark .grain::after {
+    mix-blend-mode: screen;
+    opacity: 0.05;
+  }
 }
 
 html {
+  color-scheme: light;
+}
+
+/* Neue Machina is used at Regular for headings; a heavier request would fall to Ultrabold, which is for big numerals only. */
+h1,
+h2,
+h3 {
+  font-weight: 400 !important;
+}
+html.dark {
   color-scheme: dark;
 }
 
 body {
-  background: var(--bg-primary);
-  color: var(--text-body);
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-feature-settings: "cv11", "ss01";
 }
 
 /* project.md §53: subtle motion only (fade / slide), never constant. */
@@ -69,5 +172,5 @@ body {
 /* thin, quiet scrollbars */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #2e2e2e transparent;
+  scrollbar-color: hsl(var(--divider)) transparent;
 }

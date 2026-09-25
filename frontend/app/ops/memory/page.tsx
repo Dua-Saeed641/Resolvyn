@@ -10,13 +10,13 @@ import { api } from "@/lib/api";
 import { useLive } from "@/lib/live";
 
 const TYPE_STYLE: Record<string, { fill: string; label: string; r: number }> = {
-  department: { fill: "#f5f5f5", label: "Department agent", r: 11 },
-  document: { fill: "#3b82f6", label: "Document (SOP / business logic / product)", r: 8 },
-  ticket: { fill: "#22c55e", label: "Solved ticket (episodic memory)", r: 6 },
-  rule: { fill: "#f59e0b", label: "Rulebook entry", r: 7 },
-  bug: { fill: "#ef4444", label: "First-time bug", r: 7 },
-  customer: { fill: "#999999", label: "Customer", r: 5 },
-  concept: { fill: "#4a4a4a", label: "Concept", r: 4 },
+  department: { fill: "hsl(var(--foreground))", label: "Department agent", r: 11 },
+  document: { fill: "hsl(var(--info))", label: "Document (SOP / business logic / product)", r: 8 },
+  ticket: { fill: "hsl(var(--success))", label: "Solved ticket (episodic memory)", r: 6 },
+  rule: { fill: "hsl(var(--warning))", label: "Rulebook entry", r: 7 },
+  bug: { fill: "hsl(var(--danger))", label: "First-time bug", r: 7 },
+  customer: { fill: "hsl(var(--text-secondary))", label: "Customer", r: 5 },
+  concept: { fill: "hsl(var(--divider))", label: "Concept", r: 4 },
 };
 
 interface P {
@@ -149,7 +149,7 @@ export default function MemoryPage() {
                   const b = pos[e.dst];
                   if (!a || !b) return null;
                   const lit = hover && neighbours.has(e.src) && neighbours.has(e.dst);
-                  return <line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={lit ? "#f5f5f5" : "#2e2e2e"} strokeWidth={lit ? 1.2 : 0.7} opacity={hover && !lit ? 0.25 : 1} />;
+                  return <line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={lit ? "hsl(var(--foreground))" : "hsl(var(--border))"} strokeWidth={lit ? 1.2 : 0.7} opacity={hover && !lit ? 0.25 : 1} />;
                 })}
               </g>
               <g>
@@ -163,7 +163,7 @@ export default function MemoryPage() {
                     <g key={n.id} transform={`translate(${p.x},${p.y})`} opacity={dim ? 0.25 : 1} onMouseEnter={() => setHover(n.id)} onMouseLeave={() => setHover(null)} style={{ cursor: "default" }}>
                       <circle r={st.r + Math.min(4, Math.log2(n.weight + 1))} fill={st.fill} />
                       {showLabel && (
-                        <text y={-(st.r + 6)} textAnchor="middle" fontSize={n.type === "concept" ? 9 : 10} fill="#d4d4d4">
+                        <text y={-(st.r + 6)} textAnchor="middle" fontSize={n.type === "concept" ? 9 : 10} fill="hsl(var(--text-body))">
                           {n.label.length > 26 ? n.label.slice(0, 25) + "…" : n.label}
                         </text>
                       )}

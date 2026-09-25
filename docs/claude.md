@@ -28,14 +28,16 @@ These are the only values the UI and API may use. They live in `frontend/lib/con
 - **Human actions**: `GUIDE, APPROVE, CORRECT, OVERRIDE, TEACH` — always all five, always this order, never presented as "just an escalation"
 - **Department agents** (`docs/architecture.md` §2.3 — the flow diagram is ground truth): Technical, Billing, Account, Order, Other. (An earlier prototype roster listed Logistics; shipping/tracking belongs to the Order agent, and "Other" is the catch-all from the diagram.)
 
-## Design system (`docs/project.md` §6-9, §51-57, §92-94)
+## Design system
 
-- Palette is black/near-black/grey/white only, defined once in `frontend/tailwind.config.ts` and `frontend/app/globals.css`. Accent colors (`success #22C55E`, `warning #F59E0B`, `danger #EF4444`, `info #3B82F6`) are used only where they communicate status — never decoratively, never all four at once on one screen.
-- No gradients, neon, glassmorphism, particle backgrounds, 3D, or heavy shadows. Thin `1px solid` borders, 6–8px radius.
-- Typography: Inter, restrained sizes (page title 20–24px down to metadata 11–12px). Hierarchy comes from weight, not color.
-- Never communicate state through color alone — pair every status color with a label or icon (see `components/ui/StatusBadge.tsx`).
-- Every page needs a real empty state (see `components/ui/EmptyState.tsx`) — never a blank pane.
-- Animation: fade/slide/status-transition only, nothing constant or flashy.
+The UI is built on **shadcn/ui** (Radix primitives + Tailwind): `frontend/components/ui/*` are the shadcn components; `primitives.tsx`, `StatusBadge.tsx`, `MetricCard.tsx` are thin app wrappers over them. Use these, not hand-rolled buttons, cards, inputs or dialogs.
+
+- One calm neutral (zinc) palette with light and dark themes, defined once as CSS variables in `frontend/app/globals.css` and mapped in `frontend/tailwind.config.ts`. Never hard-code a hex colour in a component; use tokens (`bg-card`, `text-muted-foreground`, `border`, `text-success`...). The legacy token names (`text-text-primary`, `bg-bg-secondary`) still resolve to the same palette.
+- Status colours (`success`, `warning`, `danger`, `info`) are muted and used only where they communicate status, always paired with a label or icon (never colour alone). No neon, no glow effects, no decorative gradients.
+- Typography: Inter. Hierarchy comes from weight and size, not colour.
+- Every page needs a real empty state (`components/ui/EmptyState.tsx`), never a blank pane.
+- Motion is functional: fades, state transitions, and the voice orb (`components/voice/VoiceOrb.tsx`), which reflects what the assistant is doing (listening, thinking, speaking). It respects `prefers-reduced-motion`.
+- Icons: lucide-react.
 
 ## Folder structure
 
@@ -91,7 +93,7 @@ This intentionally adapts `project.md` §82's flatter suggestion (`/backend/serv
 - **Mocked services must stay obviously mocked.** `backend/app/tools/mock_apis.py` (and its callers) must never be described in UI copy or docs as a real payment/CRM/shipping integration (project.md §86-87).
 - **State consistency**: a human action (Approve/Correct/Override/Teach) must (1) write the corresponding row, (2) update ticket/agent state, (3) be reflected in the activity timeline, and (4) be capable of emitting a learning signal — a UI button that only animates without changing backend state is a bug (project.md §71).
 - **Data realism**: all mock data comes from `backend/data/seed_data.py`. IDs referenced in a ticket (customer, order, refund) must stay consistent everywhere they're shown — never generate random IDs inline (project.md §70).
-- **No production-scale ambition creeping into the prototype**: no real CRM/payment/banking/shipping integrations, no production auth, no real RL training claims, no voice/email/social ingestion. See `[[context]]`, "Project stage," for the full list.
+- **No production-scale ambition creeping into the prototype**: no real CRM/payment/banking/shipping integrations, no production auth, no real RL training claims, no social-media ingestion. See `[[context]]`, "Project stage," for the full list.
 - **Prototype must run without a real LLM.** Anything that calls a model goes through `backend/app/llm` and needs a deterministic fallback (Jev has rules, agents have playbooks with a `fallback` line, the context engine writes a heuristic note first). `ENGINE_ENABLED=false` plus no cloud key must leave every flow working — `pytest` runs exactly that way.
 - **The model speaks, the playbook decides.** A department agent runs tools and returns verified facts (`Plan.facts`); the language model only phrases them (`agents/persona.py`). Never let the persona invent amounts, limits, policies, or claim an action that no completed tool call verified.
 - **Humans never wait on the model, and the model never waits on background work.** A new caller utterance cancels in-flight summaries; the 27B deep tier only runs when no call is active; finalisation (`_spawn`) must survive a hang-up.

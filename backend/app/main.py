@@ -47,7 +47,9 @@ async def lifespan(app: FastAPI):
         s.commit()
     orchestrator.reset_all()
     await llm.start()  # loads the local model in the background
-    tasks = [asyncio.create_task(tts.warm()), asyncio.create_task(jira_sim.monitor())]
+    from app.services import email_service
+
+    tasks = [asyncio.create_task(tts.warm()), asyncio.create_task(jira_sim.monitor()), asyncio.create_task(email_service.poll_mailbox())]
     yield
     for t in tasks:
         t.cancel()

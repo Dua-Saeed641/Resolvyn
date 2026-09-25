@@ -23,16 +23,18 @@ class ApiUnavailable(RuntimeError):
 
 
 # One-shot failure injection so the retry path can be demonstrated on demand.
-_FAIL_ONCE: set[str] = set()
+_FAIL_ONCE: dict[str, int] = {}  # tool -> how many upcoming calls fail
 
 
-def fail_next(tool_name: str) -> None:
-    _FAIL_ONCE.add(tool_name)
+def fail_next(tool_name: str, times: int = 1) -> None:
+    _FAIL_ONCE[tool_name] = _FAIL_ONCE.get(tool_name, 0) + max(1, times)
 
 
 def _maybe_fail(tool_name: str) -> None:
-    if tool_name in _FAIL_ONCE:
-        _FAIL_ONCE.discard(tool_name)
+    if _FAIL_ONCE.get(tool_name, 0) > 0:
+        _FAIL_ONCE[tool_name] -= 1
+        if not _FAIL_ONCE[tool_name]:
+            del _FAIL_ONCE[tool_name]
         raise ApiUnavailable(f"{tool_name}: upstream service did not return a valid response")
 
 

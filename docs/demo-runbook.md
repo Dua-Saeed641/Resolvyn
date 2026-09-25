@@ -37,6 +37,7 @@ Use headphones or keep the laptop speakers low (echo). If a judge calls from a p
 | 5 | Mid-call, say to someone else: *"Mom, turn the TV down."* | The agent stays silent; the line shows "talking to someone else" |
 | 6 | **Knowledge → drop a PDF/DOCX SOP** (prepare one: a 1-page policy). Then ask a question only that document answers. | The AI answers from the brand-new document. *Memory* shows the knowledge graph it built |
 | 7 | Say: *"I want to speak to a manager."* | Real-time escalation: assignee, context document, Jira issue (labelled simulation) |
+| 8 | End the call, then open **Emails** on the console. | The customer's summary email: what they asked, the verified refund reference, status, ticket number |
 
 What to point out: the AI **never claims a refund is done until the refund service verified it**; every human action is an audit row and a learning signal; the second caller with the P-77 problem is answered from memory with no human.
 
@@ -68,7 +69,7 @@ announcement, then ends the call without ever opening the stream. To use it, you
 TWILIO_ACCOUNT_SID=AC...
 TWILIO_AUTH_TOKEN=...
 TWILIO_PHONE_NUMBER=+1XXXXXXXXXX
-PHONE_ALIASES=+91XXXXXXXXXX:CUS-20481   # your phone -> demo customer Aarav
+PHONE_ALIASES=+91XXXXXXXXXX:CUS-20481   # your phone -> demo customer Lovekesh
 ```
 Then call the number (or use *Settings → Phone → Call me*). `preflight.py` checks the number's webhook. Free-trial rules:
 [Twilio free-trial limitations](https://help.twilio.com/articles/360036052753-Twilio-Free-Trial-Limitations).

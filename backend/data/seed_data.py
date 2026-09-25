@@ -10,22 +10,16 @@ Everything here backs the *simulated* enterprise APIs (app/tools/mock_apis.py).
 DEPARTMENTS = ["Technical", "Billing", "Account", "Order", "Other"]
 
 CUSTOMERS = [
-    {"customer_id": "CUS-20481", "name": "Aarav Sharma", "email": "aarav.sharma@example.com",
-     "phone_last4": "4821", "plan": "Premium", "account_age_years": 2,
+    {"customer_id": "CUS-20481", "name": "Lovekesh Anand", "email": "lovekesh.anand@example.com",
+     "phone_last4": "4821", "plan": "Premium", "account_age_years": 3,
      "recent_sentiment": "Frustrated", "open_issues": 0, "previous_tickets": 7},
-    {"customer_id": "CUS-20517", "name": "Maya Patel", "email": "maya.patel@example.com",
+    {"customer_id": "CUS-20517", "name": "Dua Saeed", "email": "dua.saeed@example.com",
      "phone_last4": "3390", "plan": "Standard", "account_age_years": 1,
-     "recent_sentiment": "Neutral", "open_issues": 0, "previous_tickets": 2},
-    {"customer_id": "CUS-20633", "name": "Rohan Mehta", "email": "rohan.mehta@example.com",
-     "phone_last4": "7712", "plan": "Premium", "account_age_years": 3,
-     "recent_sentiment": "Neutral", "open_issues": 0, "previous_tickets": 4},
-    {"customer_id": "CUS-20702", "name": "Priya Nair", "email": "priya.nair@example.com",
-     "phone_last4": "1045", "plan": "Standard", "account_age_years": 1,
-     "recent_sentiment": "Positive", "open_issues": 0, "previous_tickets": 1},
-    {"customer_id": "CUS-20790", "name": "Kabir Singh", "email": "kabir.singh@example.com",
-     "phone_last4": "9033", "plan": "Standard", "account_age_years": 4,
-     "recent_sentiment": "Neutral", "open_issues": 0, "previous_tickets": 5},
+     "recent_sentiment": "Neutral", "open_issues": 0, "previous_tickets": 3},
 ]
+
+# Customers that earlier versions of the demo seeded; removed on start so the console shows only the two above.
+LEGACY_CUSTOMER_IDS = ["CUS-20633", "CUS-20702", "CUS-20790"]
 
 ORDERS = {
     "ORD-83921": {"order_id": "ORD-83921", "customer_id": "CUS-20481", "item": "Wireless Earbuds Pro",
@@ -34,13 +28,13 @@ ORDERS = {
     "ORD-84010": {"order_id": "ORD-84010", "customer_id": "CUS-20517", "item": "Smart Kettle 1.7L",
                   "amount": 3199, "placed": "2026-09-08", "status": "Delivered",
                   "shipment_id": "SHP-5390"},
-    "ORD-84102": {"order_id": "ORD-84102", "customer_id": "CUS-20633", "item": "Aluminium Laptop Stand",
+    "ORD-84102": {"order_id": "ORD-84102", "customer_id": "CUS-20481", "item": "Aluminium Laptop Stand",
                   "amount": 1899, "placed": "2026-09-14", "status": "Shipped",
                   "shipment_id": "SHP-5477"},
-    "ORD-84155": {"order_id": "ORD-84155", "customer_id": "CUS-20702", "item": "Yoga Mat Pro",
+    "ORD-84155": {"order_id": "ORD-84155", "customer_id": "CUS-20517", "item": "Yoga Mat Pro",
                   "amount": 1299, "placed": "2026-09-24", "status": "Processing",
                   "shipment_id": None},
-    "ORD-84230": {"order_id": "ORD-84230", "customer_id": "CUS-20790", "item": "Studio Headphones",
+    "ORD-84230": {"order_id": "ORD-84230", "customer_id": "CUS-20481", "item": "Studio Headphones",
                   "amount": 4999, "placed": "2026-09-16", "status": "Delivered",
                   "shipment_id": "SHP-5488"},
 }
@@ -56,11 +50,11 @@ PAYMENTS = {
     "ORD-84010": [{"transaction_id": "TXN-88790", "amount": 3199, "status": "SUCCESS",
                    "method": "UPI", "timestamp": "2026-09-08 19:12:10"}],
     "ORD-84102": [{"transaction_id": "TXN-89544", "amount": 1899, "status": "SUCCESS",
-                   "method": "Card ****7712", "timestamp": "2026-09-14 09:03:55"}],
+                   "method": "Card ****4821", "timestamp": "2026-09-14 09:03:55"}],
     "ORD-84155": [{"transaction_id": "TXN-90201", "amount": 1299, "status": "SUCCESS",
                    "method": "UPI", "timestamp": "2026-09-24 08:20:31"}],
     "ORD-84230": [{"transaction_id": "TXN-89701", "amount": 4999, "status": "SUCCESS",
-                   "method": "Card ****9033", "timestamp": "2026-09-16 21:44:02"}],
+                   "method": "Card ****4821", "timestamp": "2026-09-16 21:44:02"}],
 }
 
 SHIPMENTS = {
@@ -78,9 +72,6 @@ SHIPMENTS = {
 ACCOUNTS = {
     "CUS-20481": {"status": "ACTIVE", "failed_logins": 0},
     "CUS-20517": {"status": "LOCKED", "failed_logins": 5, "locked_reason": "Too many failed logins"},
-    "CUS-20633": {"status": "ACTIVE", "failed_logins": 0},
-    "CUS-20702": {"status": "ACTIVE", "failed_logins": 1},
-    "CUS-20790": {"status": "ACTIVE", "failed_logins": 0},
 }
 
 # Historical, already-resolved tickets. They seed the *episodic* memory: the
@@ -98,18 +89,18 @@ HISTORY = [
      "subject": "Cannot log in after several attempts.",
      "resolution": "Account was auto-locked after 5 failed logins. Identity verified with email and phone "
                    "last four digits; unlock link sent."},
-    {"ticket_id": "PH-0955", "customer_id": "CUS-20633", "intent": "Shipping Delay", "department": "Order",
+    {"ticket_id": "PH-0955", "customer_id": "CUS-20481", "intent": "Shipping Delay", "department": "Order",
      "subject": "Parcel stuck at hub for three days.",
      "resolution": "Carrier sorting backlog. New ETA shared and courier escalated; parcel delivered in two days."},
-    {"ticket_id": "PH-0978", "customer_id": "CUS-20790", "intent": "Technical Issue", "department": "Technical",
+    {"ticket_id": "PH-0978", "customer_id": "CUS-20481", "intent": "Technical Issue", "department": "Technical",
      "subject": "Bluetooth headphones will not pair.",
      "resolution": "Factory reset by holding power and volume-down for ten seconds, then re-pair from "
                    "phone Bluetooth settings. Resolved."},
-    {"ticket_id": "PH-1002", "customer_id": "CUS-20702", "intent": "Refund Status", "department": "Billing",
+    {"ticket_id": "PH-1002", "customer_id": "CUS-20517", "intent": "Refund Status", "department": "Billing",
      "subject": "Refund not received after return.",
      "resolution": "Refund was completed by the bank on day four; shared the refund reference and reminded "
                    "that UPI refunds take up to five working days."},
-    {"ticket_id": "PH-1015", "customer_id": "CUS-20790", "intent": "Technical Issue", "department": "Technical",
+    {"ticket_id": "PH-1015", "customer_id": "CUS-20481", "intent": "Technical Issue", "department": "Technical",
      "subject": "App crashes on launch after update.",
      "resolution": "Cached data conflict. Clear app storage, reinstall, and sign in again. Resolved."},
     {"ticket_id": "PH-1031", "customer_id": "CUS-20517", "intent": "Order Issue", "department": "Order",
@@ -133,22 +124,22 @@ DEMO_SCENARIOS = {
         "title": "Duplicate payment → human-approved refund",
         "turns": [
             "Hi, I was charged twice for the same order and I want one of the payments refunded.",
-            "My name is Aarav Sharma and the order ID is ORD-83921.",
+            "My name is Lovekesh Anand and the order ID is ORD-83921.",
             "Yes, please go ahead and refund the duplicate one.",
             "Okay great, thank you so much.",
         ],
     },
     "first_time_bug": {
-        "customer_id": "CUS-20790",
+        "customer_id": "CUS-20481",
         "title": "First-time bug → manager suggestion → AI continues",
         "turns": [
             "Hello, my Studio Headphones show a flashing purple light and error code P-77 right after the firmware update.",
-            "I'm Kabir Singh. I already tried charging them overnight.",
+            "I'm Lovekesh Anand. I already tried charging them overnight.",
             "Okay, I tried that and it worked, the light is white now. Thanks!",
         ],
     },
     "side_talk": {
-        "customer_id": "CUS-20702",
+        "customer_id": "CUS-20517",
         "title": "Caller talks to someone else mid-call",
         "turns": [
             "Hi, I want to know where my order ORD-84155 is.",

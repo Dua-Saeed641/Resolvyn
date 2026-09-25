@@ -9,13 +9,14 @@ from pathlib import Path
 
 from sqlmodel import Session, select
 
+from app.config import get_settings
 from app.database import engine
 from app.memory.ingest import ingest_file
 from app.memory.memory_engine import memory
 from app.models import Agent, Customer, KnowledgeDocument, Message, Ticket
 from app.services import business_data
 from app.utils import utcnow
-from data.seed_data import AGENTS, CUSTOMERS, HISTORY
+from data.seed_data import AGENTS, CUSTOMERS, HISTORY, LEGACY_CUSTOMER_IDS
 
 SOP_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "sops"
 
@@ -23,10 +24,25 @@ SOP_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "sops"
 def seed_all() -> dict:
     created = {"customers": 0, "agents": 0, "history": 0, "documents": 0}
     with Session(engine) as s:
+        for legacy in LEGACY_CUSTOMER_IDS:  # the demo now has exactly two customers
+            row = s.get(Customer, legacy)
+            if row:
+                s.delete(row)
         for c in CUSTOMERS:
-            if not s.get(Customer, c["customer_id"]):
+            row = s.get(Customer, c["customer_id"])
+            if not row:
                 s.add(Customer(**c))
                 created["customers"] += 1
+            elif row.name != c["name"]:  # an earlier seed used another person for this ID: take over the identity
+                for k, v in c.items():
+                    setattr(row, k, v)
+                s.add(row)
+        for pair in (get_settings().customer_emails or "").split(","):
+            cid, _, addr = pair.partition(":")
+            row = s.get(Customer, cid.strip())
+            if row and "@" in addr:
+                row.email = addr.strip()
+                s.add(row)
         for a in AGENTS:
             if not s.get(Agent, a["name"]):
                 s.add(Agent(**a))
@@ -47,7 +63,13 @@ def seed_all() -> dict:
     now = utcnow()
     for i, h in enumerate(HISTORY):
         with Session(engine) as s:
-            if s.get(Ticket, h["ticket_id"]):
+            existing = s.get(Ticket, h["ticket_id"])
+            if existing:
+                cust = s.get(Customer, h["customer_id"])
+                if cust and (existing.customer_id != h["customer_id"] or existing.customer_name != cust.name):
+                    existing.customer_id, existing.customer_name = cust.customer_id, cust.name  # keep old history on the current people
+                    s.add(existing)
+                    s.commit()
                 continue
             when = now - timedelta(days=30 - i * 3)
             cust = s.get(Customer, h["customer_id"])

@@ -108,7 +108,7 @@ async def decide(ctx: TurnContext) -> Decision:
     if j.wants_human:
         return Decision("ESCALATED", "Caller asked for a person", int(best * 100), know,
                         escalate_reason="Caller asked to speak to a human")
-    if j.sentiment == "Angry" and st.get("unresolved_turns", 0) >= 2:
+    if j.sentiment == "Angry" and st.get("angry_streak", 0) >= 2:
         return Decision("ESCALATED", "Angry caller, unresolved after two exchanges", int(best * 100), know,
                         escalate_reason="Caller is angry and the issue is unresolved after two exchanges")
 

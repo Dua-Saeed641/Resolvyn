@@ -75,6 +75,11 @@ def build_messages(
         parts.append(f"CALLER: {who}" + (f" ({plan_name} member)" if plan_name else "") + f". Feeling: {ctx.judgment.sentiment}.")
     else:
         parts.append(f"CALLER: name not known yet. Feeling: {ctx.judgment.sentiment}.")
+    if getattr(ctx.session, "channel", "") == "Email":
+        parts.append(
+            "CHANNEL: this is an EMAIL, not a phone call. Write the body of a short, warm, clear reply: 2 to 5 sentences in "
+            "plain text, no 'umm' or spoken hesitations, no greeting line and no sign-off (they are added for you). Give the "
+            "useful details in full (IDs, amounts, dates from the facts). If you need something from them, ask for it clearly.")
     if ctx.language == "hi":
         if ctx.state.get("roman_hindi"):
             parts.append(
@@ -99,7 +104,10 @@ def build_messages(
     messages += [m for m in history[-10:] if m["content"].strip()]
 
     # Small models follow the *last* message best, so this turn's job goes there.
-    job = f"Your next line must do this: {plan.goal} Say it in one or two short spoken sentences and ask at most one question."
+    if getattr(ctx.session, "channel", "") == "Email":
+        job = f"Your email reply must do this: {plan.goal} Write it as a short email body (2 to 5 sentences)."
+    else:
+        job = f"Your next line must do this: {plan.goal} Say it in one or two short spoken sentences and ask at most one question."
     if already_said:
         job += f' You just said "{already_said}", so do not open with an acknowledgement or an apology again.'
     if proactive or not messages[-1:] or messages[-1]["role"] != "user":

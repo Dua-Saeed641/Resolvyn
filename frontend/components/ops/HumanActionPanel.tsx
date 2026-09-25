@@ -7,7 +7,7 @@ import { Button, inputCls, Label } from "@/components/ui/primitives";
 import type { TicketDetail } from "@/features/types";
 import { api } from "@/lib/api";
 import { DEPARTMENTS, HUMAN_ACTIONS, type HumanActionType } from "@/lib/constants";
-import { cx } from "@/lib/utils";
+import { cx, cn } from "@/lib/utils";
 
 const HINT: Record<HumanActionType, string> = {
   GUIDE: "Add context the AI does not have. It is used on the live call right away.",
@@ -61,7 +61,7 @@ export function HumanActionPanel({ t }: { t: TicketDetail }) {
               title={disabled ? "No action is waiting for approval" : HINT[a]}
               className={cx(
                 "rounded border px-1 py-1.5 text-[11px] font-semibold tracking-wide transition-colors disabled:cursor-not-allowed disabled:opacity-35",
-                open === a ? "border-text-primary bg-text-max text-black" : "border-border bg-card-elevated text-text-primary hover:bg-border",
+                open === a ? "border-text-primary bg-primary text-primary-foreground" : "border-border bg-card-elevated text-text-primary hover:bg-border",
                 a === "APPROVE" && pending.length > 0 && open !== a && "border-warning/60 text-warning",
               )}
             >
@@ -79,7 +79,7 @@ export function HumanActionPanel({ t }: { t: TicketDetail }) {
         {open === "GUIDE" && (
           <div className="space-y-2">
             <Label>Tell Resolvyn what it should consider</Label>
-            <textarea className={cx(inputCls, "min-h-[64px]")} value={f.guide} onChange={(e) => set("guide", e.target.value)} placeholder="e.g. This customer is Premium: offer the fastest path and do not ask them to wait." />
+            <textarea className={cn(inputCls, "min-h-[64px]")} value={f.guide} onChange={(e) => set("guide", e.target.value)} placeholder="e.g. This customer is Premium: offer the fastest path and do not ask them to wait." />
             <Button variant="primary" size="sm" disabled={busy || !f.guide.trim()} onClick={() => run(() => api.post("/human-intelligence/guide", { ticket_id: t.ticket_id, text: f.guide }), "Guidance applied to the live AI.", () => set("guide", ""))}>
               Apply guidance
             </Button>
@@ -102,7 +102,7 @@ export function HumanActionPanel({ t }: { t: TicketDetail }) {
             </div>
             <div>
               <Label>Correct action</Label>
-              <textarea className={cx(inputCls, "min-h-[56px]")} value={f.corrected} onChange={(e) => set("corrected", e.target.value)} placeholder="Refund only after duplicate transaction confirmation." />
+              <textarea className={cn(inputCls, "min-h-[56px]")} value={f.corrected} onChange={(e) => set("corrected", e.target.value)} placeholder="Refund only after duplicate transaction confirmation." />
             </div>
             <div>
               <Label>Reason (optional)</Label>
@@ -161,7 +161,7 @@ export function HumanActionPanel({ t }: { t: TicketDetail }) {
             </div>
             <div>
               <Label>Knowledge</Label>
-              <textarea className={cx(inputCls, "min-h-[72px]")} value={f.knowledge} onChange={(e) => set("knowledge", e.target.value)} placeholder="If two successful transactions exist for the same order within 10 minutes, verify the duplicate before refunding." />
+              <textarea className={cn(inputCls, "min-h-[72px]")} value={f.knowledge} onChange={(e) => set("knowledge", e.target.value)} placeholder="If two successful transactions exist for the same order within 10 minutes, verify the duplicate before refunding." />
             </div>
             <Button variant="primary" size="sm" disabled={busy || !f.topic.trim() || !f.knowledge.trim()} onClick={() => run(() => api.post("/human-intelligence/teach", { topic: f.topic, knowledge: f.knowledge, department: f.dept, ticket_id: t.ticket_id }), "Saved to the Solvable Rulebook.", () => setF((p) => ({ ...p, topic: "", knowledge: "" })))}>
               Save knowledge

@@ -213,6 +213,7 @@ async def on_escalation(ticket_id: str) -> None:
     tickets.add_event(ticket_id, "Context Engine", "CONTEXT_DOC_CREATED",
                       "Context document created (simulated Confluence) and assigned to the team", status="COMPLETED")
     jira_sim.sync(ticket_id, reason="escalation")
+    _email_summary(ticket_id, "escalated")
     asyncio.create_task(deep_summary(ticket_id))
 
 
@@ -241,7 +242,17 @@ async def on_resolution(ticket_id: str, by: str) -> None:
         expected="Resolve without regressions", observed=f"Resolved by {'AI' if by == 'AI' else 'a team member'}",
         description=f"{t.intent or 'Query'} resolved" + (" with a human in the loop" if (t.escalated or t.needs_human or by != "AI") else " autonomously"),
     )
+    _email_summary(ticket_id, "resolved")
     asyncio.create_task(deep_summary(ticket_id))
+
+
+def _email_summary(ticket_id: str, kind: str) -> None:
+    from app.services import email_service  # imported late: it depends on the conversation module
+
+    try:
+        email_service.send_summary(ticket_id, kind)
+    except Exception as e:  # noqa: BLE001 - an email problem must never disturb the ticket
+        print(f"[email] summary failed: {type(e).__name__}: {e}", flush=True)
 
 
 _deep_queue: list[str] = []

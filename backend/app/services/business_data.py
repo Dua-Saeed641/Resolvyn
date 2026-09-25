@@ -13,7 +13,7 @@ from sqlmodel import Session, select
 
 from app.database import engine
 from app.models import AccountState, Customer, Order, Payment, Shipment
-from data.seed_data import ACCOUNTS, CUSTOMERS, ORDERS, PAYMENTS, SHIPMENTS
+from data.seed_data import ACCOUNTS, CUSTOMERS, LEGACY_CUSTOMER_IDS, ORDERS, PAYMENTS, SHIPMENTS
 
 
 def _digits(s: str) -> str:
@@ -30,14 +30,22 @@ def seed() -> dict:
     n = {"orders": 0, "payments": 0, "shipments": 0, "accounts": 0}
     with Session(engine) as s:
         for o in ORDERS.values():
-            if not s.get(Order, o["order_id"]):
+            row = s.get(Order, o["order_id"])
+            if not row:
                 s.add(Order(**o))
                 n["orders"] += 1
+            elif row.customer_id != o["customer_id"]:  # owner changed when the demo went down to two customers
+                row.customer_id = o["customer_id"]
+                s.add(row)
         for oid, plist in PAYMENTS.items():
             for p in plist:
-                if not s.get(Payment, p["transaction_id"]):
+                row = s.get(Payment, p["transaction_id"])
+                if not row:
                     s.add(Payment(order_id=oid, **p))
                     n["payments"] += 1
+                elif row.method != p["method"]:
+                    row.method = p["method"]
+                    s.add(row)
         for sh in SHIPMENTS.values():
             if not s.get(Shipment, sh["shipment_id"]):
                 s.add(Shipment(**sh))
@@ -46,6 +54,10 @@ def seed() -> dict:
             if not s.get(AccountState, cid):
                 s.add(AccountState(customer_id=cid, **a))
                 n["accounts"] += 1
+        for legacy in LEGACY_CUSTOMER_IDS:
+            gone = s.get(AccountState, legacy)
+            if gone:
+                s.delete(gone)
         s.commit()
     return n
 

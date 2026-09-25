@@ -103,6 +103,8 @@ URGENCY_HIGH = [
 HUMAN_REQUEST = [
     "speak to a human", "talk to a human", "speak to a person", "real person", "human agent", "speak to a manager",
     "talk to a manager", "speak to someone", "supervisor", "customer care executive", "escalate", "manager",
+    "insaan se baat", "kisi se baat", "manager se baat", "senior se baat", "human se baat", "asli insaan", "kisi aadmi se",
+    "मैनेजर", "किसी इंसान",
 ]
 
 # Phrases that mean the caller is talking to somebody else (docs/architecture.md §2.1).

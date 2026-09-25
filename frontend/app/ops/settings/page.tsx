@@ -90,7 +90,7 @@ export default function SettingsPage() {
               <button
                 onClick={callMe}
                 disabled={!phone?.call_me_ready || !callTo.trim()}
-                className="rounded bg-text-max px-3.5 py-2 text-sm font-medium text-black disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded bg-text-max px-3.5 py-2 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Call me
               </button>

@@ -59,7 +59,7 @@ export default function BusinessDataPage() {
         <div className="grid gap-5 lg:grid-cols-2">
           <Card title="Import your own records" subtitle="CSV or JSON: orders (order_id,item,…), payments (transaction_id,order_id,…), shipments (shipment_id,carrier,…) or customers (customer_id,name,…). Existing IDs are updated.">
             <input ref={fileRef} type="file" hidden accept=".csv,.json" onChange={(e) => e.target.files?.[0] && importFile(e.target.files[0])} />
-            <button onClick={() => fileRef.current?.click()} className="rounded bg-text-max px-3.5 py-2 text-sm font-medium text-black">Choose a file</button>
+            <button onClick={() => fileRef.current?.click()} className="rounded bg-text-max px-3.5 py-2 text-sm font-medium text-primary-foreground">Choose a file</button>
             {msg && <p role="status" className={cx("mt-2 text-xs", msg.ok ? "text-success" : "text-danger")}>{msg.text}</p>}
           </Card>
           <Card title="Order lookup tester" subtitle="What the order desk finds for whatever a caller says: ORD-83921, 83921, or just the last digits.">

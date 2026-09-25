@@ -60,7 +60,7 @@ export default function TicketsPage() {
                 role="tab"
                 aria-selected={filter === f.id}
                 onClick={() => setFilter(f.id)}
-                className={cx("rounded px-2.5 py-1 text-xs font-medium", filter === f.id ? "bg-text-max text-black" : "text-text-muted hover:text-text-primary")}
+                className={cx("rounded px-2.5 py-1 text-xs font-medium", filter === f.id ? "bg-primary text-primary-foreground" : "text-text-muted hover:text-text-primary")}
               >
                 {f.label}
               </button>

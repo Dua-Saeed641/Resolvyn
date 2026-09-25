@@ -5,27 +5,93 @@
 /* project.md §6: base palette as CSS custom properties, for any code that
    cannot reach Tailwind's config (e.g. inline SVG charts). Keep in sync
    with tailwind.config.ts. */
+/* Design tokens (shadcn/ui format: H S% L%). One calm neutral palette, four muted status colours. */
 :root {
-  --bg-primary: #050505;
-  --bg-secondary: #0a0a0a;
-  --card: #111111;
-  --card-elevated: #171717;
-  --border: #222222;
-  --divider: #2e2e2e;
-  --text-secondary: #666666;
-  --text-muted: #999999;
-  --text-body: #d4d4d4;
-  --text-primary: #f5f5f5;
-  --text-max: #ffffff;
+  --radius: 0.625rem;
+  --background: 240 5% 97%;
+  --foreground: 240 6% 10%;
+  --card: 0 0% 100%;
+  --card-foreground: 240 6% 10%;
+  --card-elevated: 240 5% 96%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 6% 10%;
+  --primary: 240 6% 10%;
+  --primary-foreground: 0 0% 98%;
+  --secondary: 240 5% 94%;
+  --secondary-foreground: 240 6% 10%;
+  --muted: 240 5% 94%;
+  --muted-foreground: 240 4% 40%;
+  --accent: 240 5% 93%;
+  --accent-foreground: 240 6% 10%;
+  --destructive: 0 70% 45%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 240 6% 89%;
+  --divider: 240 6% 84%;
+  --input: 240 6% 86%;
+  --ring: 240 5% 45%;
+  --bg-secondary: 240 5% 95%;
+  --text-secondary: 240 4% 52%;
+  --text-muted: 240 4% 42%;
+  --text-body: 240 5% 26%;
+  --text-primary: 240 6% 10%;
+  --text-max: 240 6% 8%;
+  --success: 152 62% 30%;
+  --warning: 32 92% 36%;
+  --danger: 0 70% 45%;
+  --info: 217 78% 46%;
+}
+
+.dark {
+  --background: 240 6% 6%;
+  --foreground: 0 0% 96%;
+  --card: 240 5% 9%;
+  --card-foreground: 0 0% 96%;
+  --card-elevated: 240 5% 12%;
+  --popover: 240 5% 10%;
+  --popover-foreground: 0 0% 96%;
+  --primary: 0 0% 96%;
+  --primary-foreground: 240 6% 8%;
+  --secondary: 240 4% 15%;
+  --secondary-foreground: 0 0% 96%;
+  --muted: 240 4% 14%;
+  --muted-foreground: 240 5% 62%;
+  --accent: 240 4% 16%;
+  --accent-foreground: 0 0% 96%;
+  --destructive: 0 62% 52%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 240 4% 18%;
+  --divider: 240 4% 24%;
+  --input: 240 4% 20%;
+  --ring: 240 5% 60%;
+  --bg-secondary: 240 6% 8%;
+  --text-secondary: 240 4% 46%;
+  --text-muted: 240 5% 62%;
+  --text-body: 240 5% 82%;
+  --text-primary: 0 0% 96%;
+  --text-max: 0 0% 100%;
+  --success: 152 48% 48%;
+  --warning: 38 84% 56%;
+  --danger: 0 66% 60%;
+  --info: 213 78% 64%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
 }
 
 html {
+  color-scheme: light;
+}
+html.dark {
   color-scheme: dark;
 }
 
 body {
-  background: var(--bg-primary);
-  color: var(--text-body);
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-feature-settings: "cv11", "ss01";
 }
 
 /* project.md §53: subtle motion only (fade / slide), never constant. */
@@ -69,5 +135,5 @@ body {
 /* thin, quiet scrollbars */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #2e2e2e transparent;
+  scrollbar-color: hsl(var(--divider)) transparent;
 }

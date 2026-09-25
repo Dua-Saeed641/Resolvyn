@@ -1,29 +1,22 @@
+import { Badge } from "@/components/ui/badge";
 import { AGENT_STATE_COLOR, STATUS_COLOR, type AgentState, type TicketStatus } from "@/lib/constants";
 import { cx } from "@/lib/utils";
 
-/**
- * project.md §57: never rely on color alone — always pair it with a label.
- */
+/** Never rely on colour alone: every status pairs its colour with a label and a marker. */
 export const TONE_CLASSES = {
-  success: "text-success border-success/30 bg-success/10",
+  success: "text-success border-success/25 bg-success/10",
   warning: "text-warning border-warning/30 bg-warning/10",
-  danger: "text-danger border-danger/30 bg-danger/10",
-  info: "text-info border-info/30 bg-info/10",
-  muted: "text-text-muted border-border bg-card",
+  danger: "text-danger border-danger/25 bg-danger/10",
+  info: "text-info border-info/25 bg-info/10",
+  muted: "text-muted-foreground border-border bg-muted/60",
 } as const;
 export type Tone = keyof typeof TONE_CLASSES;
 
 export function Pill({ tone = "muted", children, className }: { tone?: Tone; children: React.ReactNode; className?: string }) {
   return (
-    <span
-      className={cx(
-        "inline-flex items-center gap-1.5 whitespace-nowrap rounded border px-2 py-0.5 text-xs font-medium",
-        TONE_CLASSES[tone],
-        className,
-      )}
-    >
+    <Badge variant={tone} className={className}>
       {children}
-    </span>
+    </Badge>
   );
 }
 

@@ -61,7 +61,7 @@ export function HumanActionPanel({ t }: { t: TicketDetail }) {
               title={disabled ? "No action is waiting for approval" : HINT[a]}
               className={cx(
                 "rounded border px-1 py-1.5 text-[11px] font-semibold tracking-wide transition-colors disabled:cursor-not-allowed disabled:opacity-35",
-                open === a ? "border-text-primary bg-text-max text-black" : "border-border bg-card-elevated text-text-primary hover:bg-border",
+                open === a ? "border-text-primary bg-primary text-primary-foreground" : "border-border bg-card-elevated text-text-primary hover:bg-border",
                 a === "APPROVE" && pending.length > 0 && open !== a && "border-warning/60 text-warning",
               )}
             >

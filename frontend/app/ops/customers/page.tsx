@@ -10,12 +10,16 @@ import type { CustomerProfile, Ticket } from "@/features/types";
 import { api } from "@/lib/api";
 import { fmtDateTime } from "@/lib/format";
 import { cx } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 /** project.md §17, §69: customer context and history. */
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<CustomerProfile[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [detail, setDetail] = useState<(CustomerProfile & { tickets: Ticket[] }) | null>(null);
+  const [email, setEmail] = useState("");
+  const [emailNote, setEmailNote] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
     api.get<CustomerProfile[]>("/customers").then((c) => {
@@ -25,8 +29,17 @@ export default function CustomersPage() {
     });
   }, []);
   useEffect(() => {
-    if (selected) api.get<CustomerProfile & { tickets: Ticket[] }>(`/customers/${selected}`).then(setDetail);
+    if (selected) api.get<CustomerProfile & { tickets: Ticket[] }>(`/customers/${selected}`).then((d) => { setDetail(d); setEmail(d.email ?? ""); setEmailNote(null); });
   }, [selected]);
+  const saveEmail = async () => {
+    if (!selected) return;
+    try {
+      await api.patch(`/customers/${selected}/email`, { email });
+      setEmailNote({ ok: true, text: "Saved. Summaries and replies go to this address." });
+    } catch (e) {
+      setEmailNote({ ok: false, text: e instanceof Error ? e.message : "Could not save" });
+    }
+  };
 
   return (
     <AppShell title="Customers">
@@ -54,6 +67,14 @@ export default function CustomersPage() {
                 <Kv label="Registered phone">••••{detail.phone_last4}</Kv>
                 <Kv label="Open issues">{detail.tickets.filter((t) => t.status !== "RESOLVED").length}</Kv>
               </dl>
+              <div className="mt-4 border-t pt-4">
+                <p className="mb-1.5 text-xs font-medium text-muted-foreground">Email address (where summaries and replies are sent)</p>
+                <div className="flex max-w-md gap-2">
+                  <Input value={email} onChange={(e) => setEmail(e.target.value)} aria-label="Email address" />
+                  <Button onClick={saveEmail} disabled={!email.includes("@") || email === detail.email}>Save</Button>
+                </div>
+                {emailNote && <p role="status" className={cx("mt-1.5 text-xs", emailNote.ok ? "text-success" : "text-danger")}>{emailNote.text}</p>}
+              </div>
             </Card>
             <Card title="History" bodyClass="p-0">
               {detail.tickets.length === 0 ? (

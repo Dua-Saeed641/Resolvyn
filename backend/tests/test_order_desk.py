@@ -37,7 +37,7 @@ def test_order_question_in_hinglish_is_not_a_bug_and_bare_digits_are_an_order_id
 def test_last_digits_of_an_order_find_the_order(client):
     ws, c, tid = _open_guest(client)
     try:
-        _turn(c, "Hi I want to check where my order is, my name is Aarav")
+        _turn(c, "Hi I want to check where my order is, my name is Lovekesh")
         reply = _said(_turn(c, "it's 8 3 9 2 1"))
         assert "earbuds" in reply.lower() or "blue" in reply.lower() or "transit" in reply.lower()
     finally:
@@ -48,9 +48,9 @@ def test_known_caller_needs_no_order_id(client):
     ws, c, tid = _open_guest(client)
     try:
         _turn(c, "Where is my order?")
-        r = _said(_turn(c, "my registered email is priya.nair@example.com"))
+        r = _said(_turn(c, "my registered email is dua.saeed@example.com"))
         assert "yoga" in r.lower() or "processing" in r.lower()
-        assert client.get(f"/api/tickets/{tid}").json()["customer_name"] == "Priya Nair"
+        assert client.get(f"/api/tickets/{tid}").json()["customer_name"] == "Dua Saeed"
     finally:
         ws.__exit__(None, None, None)
 
@@ -60,7 +60,7 @@ def test_business_data_is_a_real_database_and_takes_your_own_records(client):
     assert {o["order_id"] for o in snap["orders"]} >= {"ORD-83921", "ORD-84230"}
     assert any(p["transaction_id"] == "TXN-90113" for p in snap["payments"])
 
-    csv = b"order_id,customer_id,item,amount,placed,status\nORD-3508,CUS-20790,Cotton Kurta,1499,2026-09-23,Shipped\n"
+    csv = b"order_id,customer_id,item,amount,placed,status\nORD-3508,CUS-20481,Cotton Kurta,1499,2026-09-23,Shipped\n"
     r = client.post("/api/business/import", files={"file": ("orders.csv", csv, "text/csv")})
     assert r.status_code == 200 and r.json() == {"kind": "orders", "imported": 1}
 

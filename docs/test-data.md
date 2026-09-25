@@ -8,21 +8,20 @@ mocks; the knowledge is real in the sense that the AI genuinely retrieves from i
 
 | Customer ID | Name | Plan | Email | Phone ends | Notes |
 |---|---|---|---|---|---|
-| `CUS-20481` | Aarav Sharma | Premium | aarav.sharma@example.com | 4821 | The hero case: **duplicate payment** |
-| `CUS-20517` | Maya Patel | Standard | maya.patel@example.com | 3390 | Account is **LOCKED** (5 failed logins) |
-| `CUS-20633` | Rohan Mehta | Premium | rohan.mehta@example.com | 7712 | Shipment **delayed** |
-| `CUS-20702` | Priya Nair | Standard | priya.nair@example.com | 1045 | Order still **processing** (cancellable) |
-| `CUS-20790` | Kabir Singh | Standard | kabir.singh@example.com | 9033 | Delivered order, good for tech / first-time-bug tests |
+| `CUS-20481` | Lovekesh Anand | Premium | lovekesh.anand@example.com | 4821 | The hero case: **duplicate payment** on the earbuds, a **delayed** laptop stand, and headphones for the **first-time bug** |
+| `CUS-20517` | Dua Saeed | Standard | dua.saeed@example.com | 3390 | Account is **LOCKED** (5 failed logins), a yoga mat still **processing** (cancellable), a delivered kettle |
+
+Their real addresses are set in `backend/.env` (`CUSTOMER_EMAILS=CUS-20481:...,CUS-20517:...`, git-ignored, applied on every start) and can also be changed in **Team console → Customers**. After every call or chat the customer is emailed a summary; the **Emails** page shows every message sent.
 
 ## Orders, payments, shipments
 
 | Order | Customer | Item | Amount | Status | Payments | Shipment |
 |---|---|---|---|---|---|---|
-| `ORD-83921` | Aarav | Wireless Earbuds Pro | ₹2,499 | Confirmed | **2 successful charges** (`TXN-90112`, `TXN-90113`, 38 s apart, same card) | `SHP-5521` BlueDart, in transit, ETA 27 Sep |
-| `ORD-84010` | Maya | Smart Kettle 1.7L | ₹3,199 | Delivered | 1 (UPI) | `SHP-5390` delivered |
-| `ORD-84102` | Rohan | Aluminium Laptop Stand | ₹1,899 | Shipped | 1 (card) | `SHP-5477` Ecom Express, **delayed** (sorting backlog), ETA 28 Sep |
-| `ORD-84155` | Priya | Yoga Mat Pro | ₹1,299 | **Processing** | 1 (UPI) | none yet |
-| `ORD-84230` | Kabir | Studio Headphones | ₹4,999 | Delivered | 1 (card) | `SHP-5488` delivered |
+| `ORD-83921` | Lovekesh | Wireless Earbuds Pro | ₹2,499 | Confirmed | **2 successful charges** (`TXN-90112`, `TXN-90113`, 38 s apart, same card) | `SHP-5521` BlueDart, in transit, ETA 27 Sep |
+| `ORD-84010` | Dua | Smart Kettle 1.7L | ₹3,199 | Delivered | 1 (UPI) | `SHP-5390` delivered |
+| `ORD-84102` | Lovekesh | Aluminium Laptop Stand | ₹1,899 | Shipped | 1 (card ****4821) | `SHP-5477` Ecom Express, **delayed** (sorting backlog), ETA 28 Sep |
+| `ORD-84155` | Dua | Yoga Mat Pro | ₹1,299 | **Processing** | 1 (UPI) | none yet |
+| `ORD-84230` | Lovekesh | Studio Headphones | ₹4,999 | Delivered | 1 (card) | `SHP-5488` delivered |
 
 The AI only discusses an order with the account that owns it (say another customer's order ID and it refuses).
 

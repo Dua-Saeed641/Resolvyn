@@ -65,7 +65,25 @@ class Settings(BaseSettings):
     twilio_account_sid: str | None = None
     twilio_auth_token: str | None = None
     twilio_phone_number: str | None = None  # the Twilio number Twilio calls you from, e.g. +15551234567
-    public_base_url: str | None = None  # e.g. https://abc123.ngrok.app — where the phone provider reaches this API
+    public_base_url: str | None = None
+
+    # ── Email (optional real mailbox; without it the email channel uses the built-in simulated inbox) ──
+    # A Gmail address with an app password works: EMAIL_IMAP_HOST=imap.gmail.com, EMAIL_SMTP_HOST=smtp.gmail.com
+    email_address: str | None = None
+    email_password: str | None = None
+    email_imap_host: str | None = None
+    email_smtp_host: str | None = None
+    email_smtp_port: int = 465
+    email_poll_seconds: int = 10
+    # Map real addresses to demo customers: "me@gmail.com:CUS-20481"
+    email_aliases: str = ""
+    # Real addresses for the demo customers, kept out of the committed seed data: "CUS-20481:a@gmail.com,CUS-20517:b@gmail.com"
+    customer_emails: str = ""
+    # Demo/testing: deliver EVERY outgoing email to this one inbox instead of the customer's own address
+    # (the original recipient is shown at the top of the message). Leave empty in production.
+    email_redirect_to: str | None = None
+    # Send the customer a summary email after every call or chat (what was asked, what was done, the ticket reference).
+    email_summaries: bool = True  # e.g. https://abc123.ngrok.app — where the phone provider reaches this API
 
     # ── Decision thresholds ──────────────────────────────────────────────────
     # Refunds above this amount (INR) need a human Approve (docs/project.md §24, §84).

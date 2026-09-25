@@ -8,10 +8,10 @@ from app.voice import speech
 def test_entities_from_noisy_speech():
     assert extract_entities("my order id is O R D 8 3 9 2 1")["order_id"] == "ORD-83921"
     assert extract_entities("order ORD-83921 please")["order_id"] == "ORD-83921"
-    assert extract_entities("it is aarav dot sharma at example dot com")["email"] == "aarav.sharma@example.com"
+    assert extract_entities("it is lovekesh dot anand at example dot com")["email"] == "lovekesh.anand@example.com"
     assert extract_entities("the last four digits of my registered phone are 3390")["phone_last4"] == "3390"
-    ent = extract_entities("my name is Aarav Sharma and the order ID is ORD-83921")
-    assert ent["name"] == "Aarav Sharma" and ent["order_id"] == "ORD-83921"
+    ent = extract_entities("my name is Lovekesh Anand and the order ID is ORD-83921")
+    assert ent["name"] == "Lovekesh Anand" and ent["order_id"] == "ORD-83921"
     assert "name" not in extract_entities("I am so frustrated")
 
 

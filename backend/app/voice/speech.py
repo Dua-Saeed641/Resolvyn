@@ -93,9 +93,10 @@ class SentenceStreamer:
     because time-to-first-audio is what makes the voice feel live.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, *, eager: bool = True) -> None:
         self.buf = ""
         self.emitted = 0
+        self.eager = eager  # False for written channels (email): whole sentences only, no early clause
 
     def feed(self, piece: str) -> list[str]:
         self.buf += piece
@@ -108,7 +109,7 @@ class SentenceStreamer:
                 head = self.buf[: m.start()]
                 if not re.search(r"(\d|\b[A-Z][a-z]?)$", head) or head.endswith(("?", "!")):
                     cut = m.end()
-            if cut is None and self.emitted == 0:
+            if cut is None and self.emitted == 0 and self.eager:
                 words = len(self.buf.split())
                 c = self.buf.find(",", 25)
                 # never split inside a number like 2,499 (the next char must not be a digit)
@@ -178,15 +179,18 @@ def speak_dates(text: str) -> str:
     return _ISO_DATE.sub(one, text)
 
 
-def humanize(sentence: str) -> str:
-    """Replace stock call-centre phrasing with plain spoken English (Latin script only)."""
+def humanize(sentence: str, *, capitalize: bool = True) -> str:
+    """Replace stock call-centre phrasing with plain spoken English (Latin script only).
+
+    `capitalize=False` for a piece that continues a clause released early ("It's at the Pune hub," + "expected by...").
+    """
     sentence = speak_dates(sentence)
     if re.search(r"[\u0900-\u097f]", sentence):
         return sentence.strip()
     t = sentence
     for pat, rep in _STIFF:
         t = pat.sub(rep, t)
-    t = re.sub(r"\s{2,}", " ", t).strip(" ,")
-    if t and t[0].islower():
+    t = re.sub(r"\s{2,}", " ", t).strip().lstrip(",").strip()
+    if capitalize and t and t[0].islower():
         t = t[0].upper() + t[1:]
     return t or sentence.strip()

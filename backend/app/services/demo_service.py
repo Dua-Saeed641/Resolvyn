@@ -116,6 +116,14 @@ def run(scenario_id: str, auto_human: bool = True) -> dict:
 
 def reset() -> None:
     """RESET DEMO: wipe demo tickets and mutable simulated state; keep seeds + knowledge."""
+    sessions.clear()  # sessions still running would otherwise write onto the (reused) ticket IDs
+    from app.services import email_service
+
+    email_service.OUTBOX.clear()
+    email_service._addresses.clear()
+    for task in email_service._mailers.values():
+        task.cancel()
+    email_service._mailers.clear()
     from sqlmodel import delete
 
     from app.memory import kg  # noqa: F401

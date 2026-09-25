@@ -59,13 +59,13 @@ class SessionManager:
         return self._sessions.get(session_id)
 
     def by_ticket(self, ticket_id: str) -> CallSession | None:
-        for s in self._sessions.values():
-            if s.ticket_id == ticket_id:
-                return s
-        return None
+        """The newest session for this ticket, preferring one that is still open (ticket IDs can be reused after a reset)."""
+        matches = [s for s in self._sessions.values() if s.ticket_id == ticket_id]
+        live = [s for s in matches if not s.closed]
+        return (live or matches)[-1] if matches else None
 
     def active_calls(self) -> int:
-        return sum(1 for s in self._sessions.values() if not s.closed)
+        return sum(1 for s in self._sessions.values() if not s.closed and s.channel != "Email")
 
     def drop(self, session_id: str) -> None:
         self._sessions.pop(session_id, None)
@@ -73,6 +73,9 @@ class SessionManager:
     def clear(self) -> None:
         for s in self._sessions.values():
             s.cancel_turn()
+            s.closed = True
+            if s.hold_task and not s.hold_task.done():
+                s.hold_task.cancel()
         self._sessions.clear()
 
 

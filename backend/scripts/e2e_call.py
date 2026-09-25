@@ -1,7 +1,7 @@
 """Play a caller over the real /ws/call WebSocket and print what the agent says.
 
   .venv\\Scripts\\python scripts\\e2e_call.py --customer CUS-20481 --approve \\
-      "I was charged twice for my order" "My name is Aarav and the order is ORD-83921" "yes please refund it"
+      "I was charged twice for my order" "My name is Lovekesh and the order is ORD-83921" "yes please refund it"
 
 --approve       approve any refund the AI sends to the human gate (like a manager would)
 --suggest TEXT  answer a first-time-bug alert with this suggestion

@@ -27,11 +27,11 @@ async def reset():
 
 
 @router.post("/fail-next/{tool_name}")
-def fail_next(tool_name: str):
-    """Make one simulated API call fail once, to show the retry path (project.md §88)."""
+def fail_next(tool_name: str, times: int = 1):
+    """Make the next simulated call(s) of a tool fail: once shows the retry path (project.md §88), twice the hand-over."""
     from app.tools import mock_apis, tool_service
 
     if tool_name not in tool_service.REGISTRY:
         raise HTTPException(404, "unknown tool")
-    mock_apis.fail_next(tool_name)
-    return {"armed": tool_name}
+    mock_apis.fail_next(tool_name, times)
+    return {"armed": tool_name, "times": times}

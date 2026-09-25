@@ -81,7 +81,7 @@ def test_telephony_bridge_end_to_end_with_fake_speech(client, monkeypatch):
         ws.send_text(json.dumps({"event": "stop"}))
     time.sleep(1.0)
     tickets = client.get("/api/tickets").json()
-    mine = [t for t in tickets if t["customer_name"] == "Maya Patel" and t["channel"] == "Call"]  # 3390 -> Maya
+    mine = [t for t in tickets if t["customer_name"] == "Dua Saeed" and t["channel"] == "Call"]  # 3390 -> Dua
     assert mine, "caller should be identified from the last four digits of the number"
     assert mine[0]["assigned_agent"] in ("Account", None)
     assert telephony  # module imported and routed

@@ -71,6 +71,10 @@ def _agent_status(session: CallSession, state: str) -> None:
     _emit(session, {"type": "agent_status", "state": state})
 
 
+def _kind(session: CallSession) -> str:
+    return "email" if session.channel == "Email" else "speech"
+
+
 def _say(session: CallSession, text: str, turn: int, *, filler: bool = False, sender: str = "agent") -> None:
     tr = session.trace
     if tr.get("turn") == turn and "t0" in tr:
@@ -89,8 +93,8 @@ def _say(session: CallSession, text: str, turn: int, *, filler: bool = False, se
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-async def start(session: CallSession) -> None:
-    """Create the ticket and greet the caller (instant, no model needed)."""
+async def start(session: CallSession, *, greet: bool = True) -> None:
+    """Create the ticket and greet the caller (instant, no model needed). Email threads start without a greeting."""
     s = get_settings()
     cust = session.customer
     t = tickets.create(
@@ -100,6 +104,9 @@ async def start(session: CallSession) -> None:
     session.ticket_id = t.ticket_id
     if cust:
         session.state["customer_id"] = cust["customer_id"]
+    if not greet:
+        orchestrator.set_state("Other", "IDLE")
+        return
     name = cust["name"].split()[0] if cust else None
     if session.language == "hi":
         greeting = f"Namaste{' ' + name + ' ji' if name else ''}! Main {s.agent_name} bol rahi hoon, {s.business_name} se. Bataiye, main aapki kaise madad kar sakti hoon?"
@@ -197,7 +204,7 @@ def _choose_filler(session: CallSession, text: str, j: jev.Judgment, ent: dict) 
     """A human acknowledgement said *before* the model has produced a word."""
     st = session.state
     words = len(text.split())
-    if words <= 3 or j.done or st.get("awaiting") == "approval":
+    if session.channel == "Email" or words <= 3 or j.done or st.get("awaiting") == "approval":
         return None
     if j.sentiment in ("Frustrated", "Angry") and not st.get("empathy_given"):
         st["empathy_given"] = True
@@ -234,7 +241,7 @@ async def _turn(session: CallSession, raw: str, seq: int) -> None:
 
     # ── a person took over: record only, the AI stays quiet ──────────────────
     if session.human_active:
-        tickets.add_message(tid, "CUSTOMER", text, kind="speech")
+        tickets.add_message(tid, "CUSTOMER", text, kind=_kind(session))
         session.history.append({"role": "user", "content": text})
         return
 
@@ -245,7 +252,7 @@ async def _turn(session: CallSession, raw: str, seq: int) -> None:
         return
 
     _agent_status(session, "thinking")
-    tickets.add_message(tid, "CUSTOMER", text, kind="speech")
+    tickets.add_message(tid, "CUSTOMER", text, kind=_kind(session))
     session.history.append({"role": "user", "content": text})
     _apply_entities(session, ent)
     ticket = tickets.get(tid)
@@ -372,7 +379,7 @@ async def _turn(session: CallSession, raw: str, seq: int) -> None:
     if full:
         session.history.append({"role": "assistant", "content": full})
         session.last_agent_text = full
-        tickets.add_message(tid, "Resolvyn", full, kind="speech")
+        tickets.add_message(tid, "Resolvyn", full, kind=_kind(session))
     _emit(session, {"type": "agent_done", "turn": seq})
 
     # ── 9. after-speech bookkeeping ──────────────────────────────────────────
@@ -662,11 +669,11 @@ async def _speak_plan(session: CallSession, ctx: TurnContext, plan: Plan, decisi
 
     messages = build_messages(ctx, plan, decision, history=session.history, already_said=already_said,
                               guidance=session.guidance, proactive=proactive, department_persona=agent.persona)
-    streamer = speech.SentenceStreamer()
+    streamer = speech.SentenceStreamer(eager=session.channel != "Email")
     spoken: list[str] = []
     held = ""  # a very short opener ("Okay.", "Got it.") waits for the next sentence so the voice does not stutter
     queued: list[str] = []  # everything after the first sentence is spoken as ONE chunk (fewer TTS calls, smoother voice)
-    limit = 2 if plan.status == "RESOLVED" else MAX_REPLY_SENTENCES
+    limit = 2 if plan.status == "RESOLVED" else (6 if session.channel == "Email" else MAX_REPLY_SENTENCES)
     head = ""
     checked = False
 
@@ -687,7 +694,9 @@ async def _speak_plan(session: CallSession, ctx: TurnContext, plan: Plan, decisi
 
     def emit(raw: str, *, final: bool = False) -> None:
         nonlocal held
-        sentence = speech.humanize(_clean(raw))
+        # a clause released early ("It's at the Pune hub with BlueDart,") continues in the next piece: no capital there
+        continues = bool(spoken or held) and (held or spoken[-1]).rstrip().endswith(",")
+        sentence = speech.humanize(_clean(raw), capitalize=not continues)
         if not sentence or _redundant_ack(sentence, spoken, already_said):
             return
         if not bug_path and _UNVERIFIED_CLAIM.search(sentence):
@@ -813,7 +822,7 @@ def _schedule_nudge(session: CallSession, seq: int) -> None:
 async def _nudge(session: CallSession, kind: str, delay: float) -> None:
     try:
         await asyncio.sleep(delay)
-        if session.closed or session.human_active:
+        if session.closed or session.human_active or session.channel == "Email":
             return
         text = speech.pick_filler(kind, session.language)
         session.seq += 1
@@ -858,7 +867,7 @@ async def resume(ticket_id: str, event: str, payload: dict) -> None:
         full = " ".join(x for x in (filler_text, reply) if x).strip()
         if full:
             session.history.append({"role": "assistant", "content": full})
-            tickets.add_message(ticket_id, "Resolvyn", full, kind="speech")
+            tickets.add_message(ticket_id, "Resolvyn", full, kind=_kind(session))
         _emit(session, {"type": "agent_done", "turn": seq})
         if plan.status == "RESOLVED":
             await finalize_resolution(session, by="AI")

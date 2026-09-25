@@ -35,6 +35,7 @@ def _open(client, customer_id: str):
 
 
 def test_duplicate_payment_refund_needs_and_gets_human_approval(client):
+    client.post("/api/demo/reset")
     ws, c, tid = _open(client, "CUS-20481")
     try:
         # a known caller does not have to read out an order ID: the desk finds the order with the duplicate charge itself
@@ -80,7 +81,7 @@ def test_duplicate_payment_refund_needs_and_gets_human_approval(client):
 
 
 def test_side_talk_is_ignored_and_kept_out_of_the_ticket(client):
-    ws, c, tid = _open(client, "CUS-20702")
+    ws, c, tid = _open(client, "CUS-20517")
     try:
         _turn(c, "Hi, I want to know where my order ORD-84155 is.")
         ev = _turn(c, "Mom, can you turn the TV down a little? I'm on the phone.")
@@ -95,7 +96,7 @@ def test_side_talk_is_ignored_and_kept_out_of_the_ticket(client):
 
 
 def test_first_time_bug_flags_manager_and_feeds_the_ai(client):
-    ws, c, tid = _open(client, "CUS-20790")
+    ws, c, tid = _open(client, "CUS-20481")
     try:
         reply = _said(_turn(c, "My Studio Headphones show a flashing purple light and error code P-77 after the firmware update."))
         t = client.get(f"/api/tickets/{tid}").json()
@@ -131,7 +132,7 @@ def test_first_time_bug_flags_manager_and_feeds_the_ai(client):
 
 def test_second_caller_with_same_problem_is_answered_from_memory(client):
     """After a human taught the AI, the same problem is no longer a first-time bug."""
-    ws, c, tid = _open(client, "CUS-20790")
+    ws, c, tid = _open(client, "CUS-20481")
     try:
         reply = _said(_turn(c, "My Studio Headphones show a flashing purple light and error code P-77 after the firmware update."))
         t = client.get(f"/api/tickets/{tid}").json()
@@ -143,7 +144,7 @@ def test_second_caller_with_same_problem_is_answered_from_memory(client):
 
 
 def test_asking_for_a_human_escalates_in_real_time(client):
-    ws, c, tid = _open(client, "CUS-20633")
+    ws, c, tid = _open(client, "CUS-20481")
     try:
         _turn(c, "This is ridiculous, my order is late again and I want to speak to a manager right now!")
         t = client.get(f"/api/tickets/{tid}").json()
@@ -183,14 +184,16 @@ def test_reset_demo_clears_live_state(client):
 
 def test_demo_mode_runs_a_scripted_caller_through_the_real_pipeline(client):
     client.post("/api/demo/reset")
+    before = {t["ticket_id"] for t in client.get("/api/tickets").json()}
     r = client.post("/api/demo/run/duplicate_payment?auto_human=true")
     assert r.status_code == 200 and r.json()["started"]
     deadline = time.time() + 60
     ticket = None
     while time.time() < deadline:
-        live = [t for t in client.get("/api/tickets").json() if int(t["ticket_id"].split("-")[1]) >= 1042]
-        if live and live[0]["status"] == "RESOLVED":
-            ticket = live[0]
+        mine = [t for t in client.get("/api/tickets").json()
+                if t["ticket_id"] not in before and t["customer_name"] == "Lovekesh Anand" and t["status"] == "RESOLVED"]
+        if mine:
+            ticket = mine[0]
             break
         time.sleep(1)
     assert ticket, "demo ticket did not resolve"
@@ -210,7 +213,7 @@ def test_ingested_documents_are_used_to_answer_and_shape_routing(client):
     r = client.post("/api/knowledge/ingest", files={"files": ("products.csv", csv_row)}, data={"kind": "product_db"})
     assert r.status_code == 200 and r.json()["ingested"][0]["departments"] == {"Other": 1}  # product data is shared
 
-    ws, c, tid = _open(client, "CUS-20702")
+    ws, c, tid = _open(client, "CUS-20517")
     try:
         _turn(c, "Can I pick up my online order from the store?")
         t = client.get(f"/api/tickets/{tid}").json()

@@ -7,7 +7,7 @@ import { TicketCard } from "@/components/ops/TicketCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { inputCls } from "@/components/ui/primitives";
 import { useLive } from "@/lib/live";
-import { cx } from "@/lib/utils";
+import { cx, cn } from "@/lib/utils";
 
 /** project.md §32: All / Active / Waiting / Resolved / Needs Human / High Risk + agent, intent, sentiment, priority. */
 const FILTERS = [
@@ -72,19 +72,19 @@ export default function TicketsPage() {
               </button>
             ))}
           </div>
-          <select aria-label="Agent" className={cx(inputCls, "w-auto py-1.5 text-xs")} value={agent} onChange={(e) => setAgent(e.target.value)}>
+          <select aria-label="Agent" className={cn(inputCls, "w-auto py-1.5 text-xs")} value={agent} onChange={(e) => setAgent(e.target.value)}>
             <option value="">All agents</option>
             {["Technical", "Billing", "Account", "Order", "Other"].map((a) => (
               <option key={a}>{a}</option>
             ))}
           </select>
-          <select aria-label="Sentiment" className={cx(inputCls, "w-auto py-1.5 text-xs")} value={sentiment} onChange={(e) => setSentiment(e.target.value)}>
+          <select aria-label="Sentiment" className={cn(inputCls, "w-auto py-1.5 text-xs")} value={sentiment} onChange={(e) => setSentiment(e.target.value)}>
             <option value="">Any sentiment</option>
             {["Positive", "Neutral", "Frustrated", "Angry"].map((a) => (
               <option key={a}>{a}</option>
             ))}
           </select>
-          <input aria-label="Search tickets" className={cx(inputCls, "ml-auto w-64 py-1.5 text-xs")} placeholder="Search ticket, customer, intent, agent…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input aria-label="Search tickets" className={cn(inputCls, "ml-auto w-64 py-1.5 text-xs")} placeholder="Search ticket, customer, intent, agent…" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
 
         {shown.length === 0 ? (

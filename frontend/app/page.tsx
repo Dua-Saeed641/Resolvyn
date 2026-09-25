@@ -1,14 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { LogoMark } from "@/components/brand/Logo";
 import { CallPanel } from "@/components/customer/CallPanel";
 import { EmailPanel } from "@/components/customer/EmailPanel";
 import { TicketPanel } from "@/components/customer/TicketPanel";
-import { ThemeToggle } from "@/components/theme/ThemeToggle";
-import { Button } from "@/components/ui/button";
+import { Hero } from "@/components/landing/Hero";
+import { HowItWorks } from "@/components/landing/HowItWorks";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { CustomerProfile, CustomerTicketView } from "@/features/types";
@@ -17,7 +16,7 @@ import { fmtDateTime } from "@/lib/format";
 import { useCall } from "@/lib/useCall";
 import { cn } from "@/lib/utils";
 
-/** Customer side: talk to Riya, chat, or email, and watch the ticket update in real time. */
+/** Customer side: a landing hero, then talk to Riya, chat, or email, and watch the ticket update in real time. */
 export default function CustomerPage() {
   const call = useCall();
   const [customers, setCustomers] = useState<CustomerProfile[]>([]);
@@ -49,98 +48,90 @@ export default function CustomerPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-20 border-b bg-card/90 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-[1180px] items-center justify-between px-4">
-          <div className="flex items-center gap-2.5">
-            <LogoMark size={34} />
-            <div>
-              <p className="text-sm font-semibold leading-tight tracking-tight">Nova Retail</p>
-              <p className="text-[11px] leading-tight text-muted-foreground">Customer support · powered by Resolvyn</p>
+      <Hero />
+      <HowItWorks />
+
+      <section id="talk" className="relative scroll-mt-4 border-t bg-card/50">
+        <div className="mx-auto max-w-[1240px] px-6 py-16">
+          <div className="mb-10 max-w-2xl">
+            <p className="text-sm font-medium text-success">Nova Retail support</p>
+            <h2 className="mt-3 font-display text-3xl font-normal tracking-tight sm:text-5xl">Start a conversation.</h2>
+            <p className="mt-3 text-muted-foreground">Talk to Riya, chat with her, or send an email. She can look at your orders and payments and sort most things out straight away.</p>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
+            <div className="space-y-6">
+              <CallPanel
+                customers={customers}
+                status={call.status}
+                agentStatus={call.agentStatus}
+                lines={call.lines}
+                interim={call.interim}
+                error={call.error}
+                muted={call.muted}
+                sttSupported={call.sttSupported}
+                ttsFallback={call.ttsFallback}
+                sttMode={call.sttMode}
+                customerId={customerId}
+                onCustomer={setCustomerId}
+                onStart={call.start}
+                onSend={call.sendText}
+                onEnd={call.end}
+                onMute={call.toggleMute}
+                onReset={call.reset}
+                agentName="Riya"
+              />
+              <EmailPanel customer={me} />
+            </div>
+
+            <div className="space-y-6">
+              {call.ticket ? (
+                <TicketPanel ticket={call.ticket} />
+              ) : (
+                <Card className="border-dashed p-8 text-center shadow-none">
+                  <p className="font-display text-lg">Your ticket appears here</p>
+                  <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">A ticket is created the moment you start, and its status updates live while you talk.</p>
+                </Card>
+              )}
+
+              <section aria-label="Your tickets">
+                <h2 className="mb-3 font-display text-lg">{me ? `${me.name.split(" ")[0]}'s tickets` : "Your tickets"}</h2>
+                {history.length === 0 ? (
+                  <Card className="border-dashed p-5 text-sm text-muted-foreground shadow-none">No tickets yet.</Card>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {history.slice(0, 8).map((t) => {
+                      const latest = t.timeline[t.timeline.length - 1];
+                      return (
+                        <article key={t.ticket_id} className={cn("rounded-xl border bg-card p-4 text-[13px] transition-shadow hover:shadow-float", t.ticket_id === currentId && "ring-2 ring-brand/40")}>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-display text-sm">{t.ticket_id}</span>
+                            <StatusBadge status={t.status} />
+                          </div>
+                          <p className="mt-2 truncate font-medium">{t.subject}</p>
+                          <p className="mt-1 truncate text-xs text-muted-foreground">{latest?.text ?? t.status_label}</p>
+                          <p className="mt-3 text-[11px] text-text-secondary">{fmtDateTime(t.updated_at)}</p>
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
             </div>
           </div>
-          <div className="flex items-center gap-1.5">
-            <ThemeToggle />
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/ops">Team console</Link>
-            </Button>
-          </div>
         </div>
-      </header>
+      </section>
 
-      <main className="mx-auto max-w-[1180px] px-4 py-8">
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold tracking-tight">How can we help?</h1>
-          <p className="mt-1 max-w-xl text-sm text-muted-foreground">Talk to Riya, chat with her, or send an email. She can look at your orders and payments and sort most things out straight away.</p>
+      <footer className="border-t">
+        <div className="mx-auto flex max-w-[1240px] flex-col items-center justify-between gap-3 px-6 py-8 text-xs text-muted-foreground sm:flex-row">
+          <span className="flex items-center gap-2">
+            <LogoMark size={20} />
+            <span className="font-display text-sm text-foreground">Resolvyn</span>
+            <span>Every answer is verified before it is said.</span>
+          </span>
+          <span>Nova Retail is a demo business. All customer, order and payment data is simulated.</span>
         </div>
-
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
-          <div className="space-y-6">
-            <CallPanel
-              customers={customers}
-              status={call.status}
-              agentStatus={call.agentStatus}
-              lines={call.lines}
-              interim={call.interim}
-              error={call.error}
-              muted={call.muted}
-              sttSupported={call.sttSupported}
-              ttsFallback={call.ttsFallback}
-              sttMode={call.sttMode}
-              customerId={customerId}
-              onCustomer={setCustomerId}
-              onStart={call.start}
-              onSend={call.sendText}
-              onEnd={call.end}
-              onMute={call.toggleMute}
-              onReset={call.reset}
-              agentName="Riya"
-            />
-            <EmailPanel customer={me} />
-          </div>
-
-          <div className="space-y-6">
-            {call.ticket ? (
-              <TicketPanel ticket={call.ticket} />
-            ) : (
-              <Card className="border-dashed p-8 text-center shadow-none">
-                <p className="text-sm font-medium">Your ticket appears here</p>
-                <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">A ticket is created the moment you start, and its status updates live while you talk.</p>
-              </Card>
-            )}
-
-            <Card aria-label="Your tickets">
-              <div className="border-b px-5 py-3.5">
-                <h2 className="text-sm font-semibold tracking-tight">{me ? `${me.name.split(" ")[0]}'s tickets` : "Your tickets"}</h2>
-              </div>
-              {history.length === 0 ? (
-                <p className="p-5 text-sm text-muted-foreground">No tickets yet.</p>
-              ) : (
-                <ul>
-                  {history.slice(0, 8).map((t) => (
-                    <li key={t.ticket_id} className={cn("flex items-center justify-between gap-3 border-b px-5 py-3 text-[13px] last:border-b-0", t.ticket_id === currentId && "bg-muted/50")}>
-                      <span className="min-w-0">
-                        <span className="block truncate">
-                          <span className="mr-2 font-medium">{t.ticket_id}</span>
-                          {t.subject}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {fmtDateTime(t.created_at)} · {t.status_label}
-                        </span>
-                      </span>
-                      <StatusBadge status={t.status} />
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Card>
-          </div>
-        </div>
-
-        <footer className="mt-10 flex items-center justify-center gap-2 border-t pt-6 text-xs text-muted-foreground">
-          <LogoMark size={18} />
-          <span>Powered by Resolvyn. Every answer is verified before it is said.</span>
-        </footer>
-      </main>
+      </footer>
     </div>
   );
 }

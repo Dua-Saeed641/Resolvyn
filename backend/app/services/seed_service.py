@@ -66,8 +66,8 @@ def seed_all() -> dict:
             existing = s.get(Ticket, h["ticket_id"])
             if existing:
                 cust = s.get(Customer, h["customer_id"])
-                if cust and existing.customer_id != h["customer_id"]:
-                    existing.customer_id, existing.customer_name = cust.customer_id, cust.name
+                if cust and (existing.customer_id != h["customer_id"] or existing.customer_name != cust.name):
+                    existing.customer_id, existing.customer_name = cust.customer_id, cust.name  # keep old history on the current people
                     s.add(existing)
                     s.commit()
                 continue

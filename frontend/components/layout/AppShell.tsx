@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { Suspense } from "react";
 
+import { Aura } from "@/components/brand/Aura";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
 import { useLive } from "@/lib/live";
@@ -17,9 +18,12 @@ export function AppShell({ title, children }: { title: string; children: ReactNo
       <Suspense fallback={<div className="w-[230px] shrink-0 border-r border-border bg-bg-secondary" />}>
         <Sidebar />
       </Suspense>
-      <div className="flex min-w-0 flex-1 flex-col">
-        <TopBar title={title} />
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+      <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+        <Aura strength={0.55} />
+        <div className="relative z-10 flex min-h-0 flex-1 flex-col">
+          <TopBar title={title} />
+          <main className="flex-1 overflow-y-auto p-6">{children}</main>
+        </div>
       </div>
       <div className="pointer-events-none fixed bottom-4 right-4 z-50 flex w-80 flex-col gap-2">
         {toasts.map((t) => (

@@ -57,12 +57,12 @@ export function TrendChart({ data }: { data: { label: string; count: number }[] 
             {Math.round(max * g)}
           </text>
         ))}
-        <path d={areaPath} className="fill-info" fillOpacity={0.1} stroke="none" />
-        <path d={linePath} className="stroke-info" strokeWidth={2} fill="none" strokeLinejoin="round" strokeLinecap="round" />
+        <path d={areaPath} className="fill-brand" fillOpacity={0.14} stroke="none" />
+        <path d={linePath} className="stroke-brand" strokeWidth={2} fill="none" strokeLinejoin="round" strokeLinecap="round" />
         {hover !== null && (
           <>
             <line x1={x(hover)} x2={x(hover)} y1={PAD.top} y2={PAD.top + innerH} className="stroke-text-secondary" strokeWidth={1} />
-            <circle cx={x(hover)} cy={y(data[hover].count)} r={4} className="fill-info stroke-card" strokeWidth={2} />
+            <circle cx={x(hover)} cy={y(data[hover].count)} r={4} className="fill-brand stroke-card" strokeWidth={2} />
           </>
         )}
         {/* x-axis: every 4th hour label to avoid crowding */}

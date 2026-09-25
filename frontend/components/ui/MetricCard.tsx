@@ -8,7 +8,7 @@ export function MetricCard({ label, value, hint, tone }: { label: string; value:
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
       <p
         className={cx(
-          "mt-1.5 text-2xl font-semibold tabular-nums tracking-tight text-foreground",
+          "mt-1.5 font-display text-3xl font-normal tabular-nums tracking-tight text-foreground",
           tone === "warning" && "text-warning",
           tone === "danger" && "text-danger",
           tone === "success" && "text-success",

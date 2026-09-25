@@ -13,7 +13,7 @@ export function Logo({ size = 32, subtitle, className }: { size?: number; subtit
     <span className={cn("flex items-center gap-2.5", className)}>
       <LogoMark size={size} />
       <span>
-        <span className="block text-sm font-semibold leading-tight tracking-tight text-foreground">Resolvyn</span>
+        <span className="block font-display text-[17px] font-normal leading-tight tracking-tight text-foreground">Resolvyn</span>
         {subtitle && <span className="block text-[11px] leading-tight text-muted-foreground">{subtitle}</span>}
       </span>
     </span>

@@ -11,8 +11,8 @@ export function TopBar({ title }: { title: string }) {
   const { connected, llm, stats } = useLive();
   const ready = llm?.live_ready;
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between border-b bg-card px-6">
-      <h1 className="text-sm font-semibold tracking-tight text-foreground">{title}</h1>
+    <header className="flex h-14 shrink-0 items-center justify-between border-b bg-card/80 px-6 backdrop-blur">
+      <h1 className="text-[17px] tracking-tight text-foreground">{title}</h1>
       <div className="flex items-center gap-2.5">
         {stats ? (
           <Badge variant={stats.live_calls > 0 ? "info" : "muted"}>

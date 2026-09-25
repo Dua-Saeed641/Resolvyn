@@ -30,8 +30,8 @@ export function VoiceOrb({ state, size = 280, level = 0 }: { state: OrbState; si
 
     const css = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    let colors = { fg: css("--foreground"), accent: css("--info") };
-    const themeWatch = new MutationObserver(() => (colors = { fg: css("--foreground"), accent: css("--info") }));
+    let colors = { fg: css("--foreground"), accent: css("--brand") };
+    const themeWatch = new MutationObserver(() => (colors = { fg: css("--foreground"), accent: css("--brand") }));
     themeWatch.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
 
     let amp = 0.03; // how much the outline moves

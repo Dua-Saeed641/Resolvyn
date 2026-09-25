@@ -79,8 +79,18 @@ RESUME = re.compile(r"\b(where were we|as i was saying|i'?m back|sorry about tha
 
 
 def _nothing_concrete(ctx: TurnContext) -> bool:
-    """No fault described and no recognisable request: never a first-time bug, ask what they need instead."""
+    """No fault described and no recognisable request: never a first-time bug, ask what they need instead.
+
+    Must agree with _has_problem's word-count signal (same >=9-word threshold): a long, specific
+    description is never "nothing concrete" merely because Jev can't classify it into a known intent —
+    detailed-but-unclassifiable is exactly what a first-time bug looks like, not small talk. Without this,
+    a genuinely novel problem (necessarily "General Query"/low confidence, since nothing matched) would
+    contradict the decision already made at _has_problem's call site (line ~113), which lets it through as
+    a real problem on the same word-count basis.
+    """
     j = ctx.judgment
+    if len(ctx.text.split()) >= 9:
+        return False
     return not _DEFECT.search(ctx.text) and (j.intent == "General Query" or j.confidence < 60)
 
 

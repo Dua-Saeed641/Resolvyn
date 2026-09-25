@@ -12,6 +12,7 @@ from app.api.routes import (
     analytics,
     business,
     customers,
+    dev_db,
     email,
     demo,
     human_intelligence,
@@ -43,3 +44,5 @@ api_router.include_router(routing.router, prefix="/routing", tags=["routing"])
 api_router.include_router(system.router, tags=["system"])
 api_router.include_router(jev.router, prefix="/jev", tags=["jev"])
 api_router.include_router(email.router, prefix="/email", tags=["email"])
+# TEMPORARY (see app/api/routes/dev_db.py's own docstring for removal steps)
+api_router.include_router(dev_db.router, prefix="/dev-db", tags=["dev-db"])

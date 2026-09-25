@@ -11,11 +11,22 @@ import { api } from "@/lib/api";
 /** What is actually running: local models through the epsilon engine, optional cloud model, voice. */
 export default function SettingsPage() {
   const [s, setS] = useState<SystemInfo | null>(null);
-  const [phone, setPhone] = useState<{ ready: boolean; webhook_url: string; stt: string | null; tts: string | null } | null>(null);
+  const [phone, setPhone] = useState<{ ready: boolean; call_me_ready?: boolean; twilio_number?: string | null; webhook_url: string; stt: string | null; tts: string | null } | null>(null);
+  const [callTo, setCallTo] = useState("");
+  const [callMsg, setCallMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const callMe = async () => {
+    setCallMsg(null);
+    try {
+      const r = await api.post<{ calling: string }>("/telephony/call-me", { to: callTo });
+      setCallMsg({ ok: true, text: `Calling ${r.calling}… pick up (on a trial account you may need to press a key first).` });
+    } catch (e) {
+      setCallMsg({ ok: false, text: e instanceof Error ? e.message : "Could not place the call" });
+    }
+  };
   useEffect(() => {
     const load = () => {
       api.get<SystemInfo>("/system").then(setS).catch(() => undefined);
-      api.get<{ ready: boolean; webhook_url: string; stt: string | null; tts: string | null }>("/telephony/status").then(setPhone).catch(() => undefined);
+      api.get<NonNullable<typeof phone>>("/telephony/status").then(setPhone).catch(() => undefined);
     };
     load();
     const t = setInterval(load, 4000);
@@ -65,6 +76,28 @@ export default function SettingsPage() {
             <Kv label="Speech recognition">{phone?.stt ?? "—"}</Kv>
             <Kv label="Text-to-speech">{phone?.tts ?? "—"}</Kv>
           </dl>
+          <div className="mt-4 border-t border-border pt-4">
+            <p className="text-[11px] uppercase tracking-wide text-text-muted">Call me · Twilio dials your phone and connects you to Riya</p>
+            <div className="mt-2 flex gap-2">
+              <input
+                className="w-full rounded border border-border bg-bg-secondary px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary"
+                placeholder="+91 98765 43210"
+                aria-label="Your phone number"
+                value={callTo}
+                onChange={(e) => setCallTo(e.target.value)}
+                disabled={!phone?.call_me_ready}
+              />
+              <button
+                onClick={callMe}
+                disabled={!phone?.call_me_ready || !callTo.trim()}
+                className="rounded bg-text-max px-3.5 py-2 text-sm font-medium text-black disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Call me
+              </button>
+            </div>
+            {!phone?.call_me_ready && <p className="mt-1 text-xs text-warning">Needs TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN in backend/.env and a tunnel (start.ps1 -Tunnel).</p>}
+            {callMsg && <p role="status" className={`mt-1 text-xs ${callMsg.ok ? "text-success" : "text-danger"}`}>{callMsg.text}</p>}
+          </div>
           <p className="mt-3 text-xs text-text-muted">
             Expose the API with a tunnel (ngrok / cloudflared), set PUBLIC_BASE_URL, and point your Twilio number&apos;s voice webhook at the URL above. The caller is recognised from the last four digits of their number.
           </p>

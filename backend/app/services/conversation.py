@@ -14,6 +14,7 @@ session's WebSocket; the browser turns each into audio as soon as it arrives.
 """
 
 import asyncio
+import random
 import re
 import time
 
@@ -25,6 +26,7 @@ from app.context_engine import context_engine
 from app.decision_engine.decision_engine import Decision, decide
 from app.judgment import jev
 from app.llm import LLMUnavailable, llm
+from app.utils import utcnow
 from app.memory.memory_engine import memory
 from app.perception import perception_service
 from app.services import ticket_service as tickets
@@ -45,7 +47,13 @@ def _spawn(coro) -> asyncio.Task:
     _background.add(task)
     task.add_done_callback(_background.discard)
     return task
+_INFO_QUESTION = re.compile(r"\b(warranty|claim|how much|price|cost|policy|return|refund policy|cover(?:ed|age)?)\b", re.I)
 _SIDE_TAG = re.compile(r"^\s*\[?\s*SIDE[_ ]?TALK", re.I)
+# Things the model likes to invent to sound helpful. They may only be said on the paths where they are true.
+_UNVERIFIED_CLAIM = re.compile(
+    r"already (?:been )?(?:reported|known|logged|flagged)|reported by (?:others|other|some)|other (?:customers|people|users)|"
+    r"others have|group log|actively working on|team is working on (?:a|the) fix|added your case|"
+    r"pehle se (?:report|pata)|dusre (?:customers|logon)", re.I)
 _PREFIX = re.compile(r"^\s*(?:riya|agent|assistant)\s*:\s*", re.I)
 
 
@@ -64,6 +72,12 @@ def _agent_status(session: CallSession, state: str) -> None:
 
 
 def _say(session: CallSession, text: str, turn: int, *, filler: bool = False, sender: str = "agent") -> None:
+    tr = session.trace
+    if tr.get("turn") == turn and "t0" in tr:
+        key = "filler_ms" if filler else "first_word_ms"
+        tr.setdefault(key, int((time.perf_counter() - tr["t0"]) * 1000))
+        if filler:
+            tr["filler"] = text
     _emit(session, {
         "type": "agent_sentence", "turn": turn, "text": text, "say": speech.to_spoken(text),
         "lang": session.language, "filler": filler, "sender": sender,
@@ -98,14 +112,48 @@ async def start(session: CallSession) -> None:
     orchestrator.set_state("Other", "IDLE")
 
 
-def submit(session: CallSession, text: str) -> None:
-    """Entry point for a finished caller utterance. Barge-in: a new utterance cancels the old turn."""
+# Speech recognition ends an utterance at any pause. People pause mid-sentence ("I don't have it in front of me, but..."),
+# so a fragment that stops on a hanging word waits a moment for the rest instead of getting an answer of its own.
+_DANGLING = re.compile(
+    r"(?:\b(?:but|and|so|because|or|if|then|also|like|which|that|with|to|of|for|my|the|a|an|is|it's|its|i|um+|uh+|hmm+|"
+    r"aur|lekin|par|toh|ki|ke|ka|ko|mein|se|jo|matlab)|,|\.\.\.|…)\s*$", re.I)
+HOLD_SECONDS = 1.6
+
+
+def _incomplete(text: str) -> bool:
+    return bool(_DANGLING.search(text.strip()))
+
+
+def submit(session: CallSession, text: str, *, voice: bool = False) -> None:
+    """Entry point for a finished caller utterance. Barge-in: a new utterance cancels the old turn.
+
+    Voice input that stops mid-sentence is held for HOLD_SECONDS and merged with what follows.
+    """
+    if voice:
+        if session.hold_task and not session.hold_task.done():
+            session.hold_task.cancel()
+        if session.held_text:
+            text, session.held_text = f"{session.held_text} {text}".strip(), ""
+        if _incomplete(text):
+            session.held_text = text
+            session.hold_task = asyncio.create_task(_release_held(session))
+            return
     session.cancel_turn()
     if session.ticket_id:
         context_engine.cancel(session.ticket_id)  # the GPU belongs to the caller's reply now
     session.seq += 1
     seq = session.seq
     session.task = asyncio.create_task(_guard(session, text, seq))
+
+
+async def _release_held(session: CallSession) -> None:
+    try:
+        await asyncio.sleep(HOLD_SECONDS)
+    except asyncio.CancelledError:
+        return
+    text, session.held_text = session.held_text, ""
+    if text and not session.closed:
+        submit(session, text)
 
 
 def barge_in(session: CallSession) -> None:
@@ -168,13 +216,21 @@ async def _turn(session: CallSession, raw: str, seq: int) -> None:
     st = session.state
     tid = session.ticket_id
     assert tid
-    enriched = perception_service.enrich(raw, session.channel)
+    enriched = perception_service.enrich(raw, session.channel, expect_order=st.get("awaiting") == "order_id")
+    session.trace = {"turn": seq, "t0": started, "wall": utcnow().isoformat(), "heard": enriched["text"],
+                     "language": enriched["language"], "entities": enriched["entities"], "blocked": []}
     text, ent = enriched["text"], enriched["entities"]
     if not text:
         return
-    if enriched["language"] != session.language and len(text.split()) >= 3:
-        session.language = enriched["language"]
-        tickets.update(tid, language=session.language)
+    # Hindi/Hinglish is sticky: a short reply like "ismein 3508 likha hai" must not flip the caller back to English
+    new_lang = enriched["language"]
+    if new_lang == "hi" and session.language != "hi":
+        session.language = "hi"
+        tickets.update(tid, language="hi")
+    elif new_lang == "en" and session.language == "hi" and len(text.split()) >= 6             and not any(w in perception_service.HINGLISH for w in re.findall(r"[a-z]+", text.lower())):
+        session.language = "en"
+        tickets.update(tid, language="en")
+    st["roman_hindi"] = bool(re.search(r"[a-zA-Z]{3}", text)) and not perception_service._DEVANAGARI.search(text)         if session.language == "hi" else False
 
     # ── a person took over: record only, the AI stays quiet ──────────────────
     if session.human_active:
@@ -209,6 +265,11 @@ async def _turn(session: CallSession, raw: str, seq: int) -> None:
 
     if jev.is_unsure(text, j):  # only now spend a model call on an unsure judgment
         j = await jev.refine_with_model(text, j, session.history[:-1])
+    # An answer to the desk's own question ("it's priya@example.com" after "what's your order ID?") stays with that desk.
+    prior = session.prior_judgment
+    if (st.get("awaiting") not in (None, "approval", "bug_followup") and prior and prior.intent != "General Query"
+            and j.department != prior.department and j.confidence < 85 and len(text.split()) <= 10):
+        j.intent, j.department, j.carried = prior.intent, prior.department, True
     j.query = jev.write_query(text, j, subject=(ticket.subject if ticket and ticket.subject != "New conversation" else st.get("subject")))
     _note_judgment(session, ticket, j, ent, time.perf_counter() - started)
 
@@ -217,6 +278,13 @@ async def _turn(session: CallSession, raw: str, seq: int) -> None:
     orchestrator.set_state(department, "RETRIEVING", tid, "Retrieving knowledge and memory")
     ret = memory.retrieve(j.query, department, exclude_ticket=tid)
     _note_retrieval(session, ret, j)
+    session.trace.update(
+        jev={"intent": j.intent, "department": j.department, "confidence": j.confidence, "sentiment": j.sentiment,
+             "carried": j.carried, "source": j.source, "query": j.query},
+        jev_ms=int((time.perf_counter() - started) * 1000),
+        memory={"best_rulebook": round(ret.best_common, 2), "best_bug_memory": round(ret.best_bug, 2),
+                "hits": [{"title": h.title, "kind": h.kind, "score": round(h.score, 2)} for h in ret.top_hits(3)]},
+    )
 
     customer = session.customer
     ctx = TurnContext(session=session, ticket_id=tid, text=text, entities=ent, judgment=j, retrieval=ret,
@@ -228,6 +296,7 @@ async def _turn(session: CallSession, raw: str, seq: int) -> None:
         plan = Plan(goal="The caller is happy. Say a short warm goodbye and wish them a good day.",
                     fallback="Wonderful! Thanks for calling Nova Retail, have a lovely day.",
                     status="RESOLVED", agent_state="COMPLETED", operation="Resolved", use_knowledge=False)
+        _hindi_goodbye(plan, session)
         decision = Decision("INSTANT", "Caller confirmed", 95)
         resolved_now = True
     elif j.done and not st.get("awaiting") and st.get("problem_stated") and not st.get("bug_flagged") \
@@ -235,6 +304,7 @@ async def _turn(session: CallSession, raw: str, seq: int) -> None:
         plan = Plan(goal="The caller says that's all. Say a short warm goodbye.",
                     fallback="Great, thanks for calling Nova Retail. Have a lovely day!",
                     status="RESOLVED", agent_state="COMPLETED", operation="Resolved", use_knowledge=False)
+        _hindi_goodbye(plan, session)
         decision = Decision("INSTANT", "Caller finished", 92)
         resolved_now = True
     else:
@@ -243,10 +313,24 @@ async def _turn(session: CallSession, raw: str, seq: int) -> None:
         # ── 5. decision engine ───────────────────────────────────────────────
         decision = await decide(ctx)
         _note_decision(session, decision)
+        session.trace["decision"] = {"path": decision.path, "reason": decision.reason, "note": decision.note}
 
         # ── 6. the department agent (or the special paths) ───────────────────
         agent = orchestrator.route(department)
-        if decision.small_talk:
+        if jev.IDENTITY_QUESTION.search(text):
+            plan = Plan(goal="Answer honestly that you are an AI assistant.",
+                        fallback=random.choice([
+                            "Ha, fair question. I'm Riya, an AI assistant for Nova Retail. I can sort most things out right here, and a colleague is always there if you'd rather. So, what can I help you with?",
+                            "Good question. I'm an AI assistant, Riya from Nova Retail. I can handle most things myself, and I can get a person on the line whenever you want. What do you need?",
+                        ]),
+                        verbatim=True, agent_state="IDLE", operation="Waiting for caller", use_knowledge=False)
+        elif decision.small_talk and st.get("problem_stated"):
+            plan = Plan(goal="The caller is back with you mid-call (they may have been talking to someone else). Say no worries in a few words and "
+                             "pick up exactly where you left off: one short line on the last thing you were discussing, then ask what else they need. "
+                             "Do not invent any new problem.",
+                        fallback="No worries! So, we were sorting out your order. What else can I help you with?",
+                        agent_state="IDLE", operation="Waiting for caller", use_knowledge=False)
+        elif decision.small_talk:
             plan = Plan(goal="Warmly ask how you can help today.", fallback="Sure, I'm here. What can I help you with?",
                         agent_state="IDLE", operation="Waiting for caller", use_knowledge=False)
         elif decision.path == "ESCALATED":
@@ -264,6 +348,12 @@ async def _turn(session: CallSession, raw: str, seq: int) -> None:
                             facts=[f"Suggested fix from a previous case: {decision.bug_suggestion}"], status="ACTIVE", path="INSTANT",
                             agent_state="COMPLETED", operation="Applying a fix learned from a past case")
                 st["awaiting"] = "tech_feedback"
+            elif decision.path == "INSTANT" and (department in ("Billing", "Account", "Order")
+                                                 or (department == "Technical" and _INFO_QUESTION.search(text))):
+                # a question the documents can answer (price, pickup, gift wrap…), not a job for the tool playbook
+                plan = Plan(goal="Answer the caller's question using the KNOWLEDGE, in your own words, briefly. If it is a procedure, give the key steps naturally.",
+                            fallback="Let me tell you what I know about that. Could you tell me a little more about what you need?",
+                            status="ACTIVE", path="INSTANT", agent_state="COMPLETED", operation="Answered from the knowledge base")
             else:
                 plan = await agent.plan(ctx)
         customer = session.customer
@@ -292,6 +382,7 @@ async def _turn(session: CallSession, raw: str, seq: int) -> None:
         orchestrator.set_state(department, "WAITING" if plan.agent_state == "WAITING" else "COMPLETED", tid, plan.operation or None)
         _schedule_nudge(session, seq)
     session.prior_judgment = j
+    _record_trace(session, plan, decision, department, full, time.perf_counter() - started)
     _spawn(context_engine.refresh(tid))
     print(f"[turn {seq}] {time.perf_counter() - started:.2f}s total path={decision.path} dept={department}", flush=True)
 
@@ -349,6 +440,37 @@ def _note_retrieval(session: CallSession, ret, j: jev.Judgment) -> None:
         f"Jev query → {len(sources)} sources · best match {ret.best_common:.2f} (rulebook) / {ret.best_bug:.2f} (first-time-bug memory)",
         status="COMPLETED", meta={"query": j.query, "sources": sources, "best_common": round(ret.best_common, 2), "best_bug": round(ret.best_bug, 2)},
     )
+
+
+def _record_trace(session: CallSession, plan: Plan, decision: Decision, department: str, said: str, took: float) -> None:
+    """One card per caller turn for the Live AI brain: heard → judged → recalled → decided → acted → guarded → spoke."""
+    from sqlmodel import Session, select
+
+    from app.database import engine
+    from app.models import ToolCall
+
+    tr = dict(session.trace)
+    if not tr.get("turn"):
+        return
+    t0 = tr.pop("t0", None)
+    since = tr.pop("wall", None)
+    tools = []
+    with Session(engine) as s:
+        rows = s.exec(select(ToolCall).where(ToolCall.ticket_id == session.ticket_id)).all()
+    for r in rows:
+        stamp = r.timestamp.isoformat() if r.timestamp else ""
+        if since and stamp >= since[:19]:
+            tools.append({"tool": r.tool_name, "status": r.status})
+    tr.update(
+        department=department, agent=f"{department} Agent", facts=plan.facts[:6], said=said,
+        path=decision.path, total_ms=int(took * 1000), tools=tools,
+        llm=llm.ready("fast") and not plan.verbatim,
+        model=llm.last_served.get("fast") if llm.ready("fast") and not plan.verbatim else None,
+    )
+    tickets.add_event(session.ticket_id, "Resolvyn", "TURN_TRACE",
+                      f"Turn {tr['turn']}: {decision.path.replace('_', ' ').lower()} via {department} desk · "
+                      f"first word {tr.get('filler_ms') or tr.get('first_word_ms') or 0} ms",
+                      status="COMPLETED", meta={"trace": tr})
 
 
 def _note_decision(session: CallSession, d: Decision) -> None:
@@ -535,7 +657,7 @@ async def _speak_plan(session: CallSession, ctx: TurnContext, plan: Plan, decisi
                       already_said: str | None, proactive: bool = False) -> str | None:
     """Stream the model's words as sentences. Returns the spoken text, or None for side talk."""
     agent = orchestrator.route(ctx.judgment.department if ctx.judgment else "Other")
-    if not llm.ready("fast"):
+    if plan.verbatim or not llm.ready("fast"):
         return _fallback(session, plan, seq)
 
     messages = build_messages(ctx, plan, decision, history=session.history, already_said=already_said,
@@ -560,11 +682,20 @@ async def _speak_plan(session: CallSession, ctx: TurnContext, plan: Plan, decisi
             _say(session, " ".join(queued), seq)
             queued.clear()
 
+    bug_path = plan.path in ("FIRST_TIME_BUG", "KNOWN_OPEN_BUG") or bool(guidance_claims(plan))
+    evidence = " ".join(plan.facts) + " " + " ".join(g for g in (session.guidance or []))
+
     def emit(raw: str, *, final: bool = False) -> None:
         nonlocal held
         sentence = speech.humanize(_clean(raw))
         if not sentence or _redundant_ack(sentence, spoken, already_said):
             return
+        if not bug_path and _UNVERIFIED_CLAIM.search(sentence):
+            session.trace.setdefault("blocked", []).append({"said": sentence, "why": "claim not backed by any verified fact"})
+            return  # not backed by any verified fact: never say it
+        if _invented_date(sentence, evidence):
+            session.trace.setdefault("blocked", []).append({"said": sentence, "why": "date not in the verified facts"})
+            return  # a date or delivery day that no verified fact contains
         if held:
             sentence, held = f"{held} {sentence}", ""
         if not final and len(sentence.split()) <= 3 and sentence[-1] in ".!,?":
@@ -611,7 +742,12 @@ async def _speak_plan(session: CallSession, ctx: TurnContext, plan: Plan, decisi
         return _fallback(session, plan, seq)
     # A one-word reaction ("Sure, why not.") that skips the actual point is worse than silence:
     # add the playbook's own line so the caller always hears what matters.
-    if len(" ".join(spoken).split()) < 6 and plan.status != "RESOLVED" and (plan.facts or plan.escalate or plan.status):
+    said_low = " ".join(spoken).lower()
+    if plan.must_say and not any(w.lower() in said_low for w in plan.must_say) and plan.status != "RESOLVED":
+        line = speech.humanize(plan.fallback)
+        _say(session, line, seq)
+        spoken.append(line)
+    elif len(" ".join(spoken).split()) < 6 and plan.status != "RESOLVED" and (plan.facts or plan.escalate or plan.status):
         line = speech.humanize(plan.fallback)
         _say(session, line, seq)
         spoken.append(line)
@@ -619,6 +755,34 @@ async def _speak_plan(session: CallSession, ctx: TurnContext, plan: Plan, decisi
 
 
 _ACKS = {"got it", "okay", "ok", "sure", "sure yeah", "right", "yeah", "alright", "mm-hmm", "mm hmm", "i see", "okay got it", "understood"}
+
+
+_MONTHS = r"jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?"
+_DATE_MENTION = re.compile(rf"\b(\d{{1,2}})(?:st|nd|rd|th)\b|\b(\d{{1,2}})\s+(?:{_MONTHS})\b|\b(?:{_MONTHS})\s+(\d{{1,2}})\b", re.I)
+
+
+def _invented_date(sentence: str, evidence: str) -> bool:
+    """A specific day ("by the 27th", "28 September") may only be said if the verified facts contain that day."""
+    days = {int(x) for x in re.findall(r"\d+", evidence) if len(x) <= 4}
+    for m in _DATE_MENTION.finditer(sentence):
+        day = next(int(g) for g in m.groups() if g)
+        if day not in days:
+            return True
+    return False
+
+
+def _hindi_goodbye(plan: Plan, session: CallSession) -> None:
+    if session.language == "hi":
+        plan.fallback = random.choice([
+            "Ji, shukriya Nova Retail ko call karne ke liye. Aapka din accha rahe!",
+            "Theek hai ji, koi aur baat ho toh phir call kar lijiyega. Dhanyavaad!",
+        ])
+        plan.verbatim = True
+
+
+def guidance_claims(plan: Plan) -> bool:
+    """True when the plan's own verified facts are what makes such a statement legitimate."""
+    return any(_UNVERIFIED_CLAIM.search(f) for f in plan.facts)
 
 
 def _redundant_ack(sentence: str, spoken: list[str], already_said: str | None) -> bool:

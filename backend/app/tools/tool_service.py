@@ -26,6 +26,8 @@ REGISTRY = {
     "unlock_account": mock_apis.unlock_account,
     "send_reset_link": mock_apis.send_reset_link,
     "get_order": mock_apis.get_order,
+    "lookup_order": mock_apis.lookup_order,
+    "orders_for_customer": mock_apis.orders_for_customer,
     "get_shipment": mock_apis.get_shipment,
     "cancel_order": mock_apis.cancel_order,
     "get_payment_transactions": mock_apis.get_payment_transactions,
@@ -43,7 +45,7 @@ def _tool_payload(row: ToolCall) -> dict:
     return tickets.tool_dict(row)
 
 
-async def call(ticket_id: str, name: str, agent: str, **kwargs):
+async def call(ticket_id: str, name: str, agent: str, /, **kwargs):
     """Execute a tool. Returns (ok, result). Never raises."""
     fn = REGISTRY[name]
     with Session(engine, expire_on_commit=False) as s:

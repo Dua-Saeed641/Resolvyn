@@ -33,6 +33,9 @@ class CallSession:
     started_at: Any = field(default_factory=utcnow)
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     last_agent_text: str = ""
+    trace: dict = field(default_factory=dict)  # the reasoning trace of the turn in progress (Live AI brain)
+    held_text: str = ""  # a spoken fragment that ended mid-sentence, waiting for the rest
+    hold_task: asyncio.Task | None = None
 
     def cancel_turn(self) -> None:
         if self.task and not self.task.done():

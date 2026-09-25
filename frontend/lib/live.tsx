@@ -48,10 +48,14 @@ interface LiveState {
 
 const Ctx = createContext<LiveState | null>(null);
 
+// Outside <LiveProvider> (pages that are not under /ops) the hook returns an inert, empty state instead of throwing.
+const EMPTY: LiveState = {
+  connected: false, tickets: {}, agents: [], stats: null, events: [], bugs: [], approvals: [], llm: null, demo: null, toasts: [],
+  dismissToast: () => undefined, subscribe: () => () => undefined, refreshBugs: async () => undefined,
+};
+
 export function useLive(): LiveState {
-  const v = useContext(Ctx);
-  if (!v) throw new Error("useLive must be used inside <LiveProvider>");
-  return v;
+  return useContext(Ctx) ?? EMPTY;
 }
 
 export function LiveProvider({ children }: { children: ReactNode }) {

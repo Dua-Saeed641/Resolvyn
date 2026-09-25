@@ -27,7 +27,13 @@ TOOL_INTENTS = {
     "Account Access", "Profile Update", "Shipping Delay",
 }
 _ORDER_ACTION = re.compile(r"cancel|wrong|damag|broken|missing|defect|replace|return|exchange", re.I)
-_ORDER_STATUS = re.compile(r"\b(where|status|track|when|arriv|deliver|shipped|dispatch)", re.I)
+_PERSONAL_ORDER = re.compile(r"\b(i ordered|i placed|placed an order|my order|my parcel|my package|mera order|apna order|maine order|order kiya|ordered)\b", re.I)
+_ORDER_STATUS = re.compile(r"\b(where|status|track|when|arriv|deliver|shipped|dispatch|kahan|kab|puch|baare|pata|aaya|mila|pahunch)", re.I)
+# Something is actually *broken* (a device, an app, an unfamiliar error): only these can be a "first-time bug".
+# A question about an order, a payment or a login with nothing to look up yet is never a bug.
+_DEFECT = re.compile(
+    r"error|not working|doesn.?t work|stopped|crash|bug|glitch|blink|flash|light|code|fault|defect|dead|won.?t|"
+    r"freez|hang|stuck|overheat|noise|smell|smoke|kharab|kaam nahi|chal nahi|band ho|काम नहीं|चल नहीं", re.I)
 TOOL_DEPARTMENTS = {"Billing", "Account", "Order"}
 
 
@@ -53,8 +59,10 @@ def _is_tool_flow(ctx: TurnContext) -> bool:
     st, j = ctx.state, ctx.judgment
     if st.get("awaiting") in {
         "order_id", "identity", "verification", "confirm_refund", "approval", "confirm_unlock", "confirm_reset",
-        "confirm_cancel",
+        "confirm_cancel", "order_choice",
     }:
+        if st.get("awaiting") == "approval" and j.department not in TOOL_DEPARTMENTS:
+            return False  # e.g. a warranty or price question while the refund waits: answer it from the documents
         return True
     if j.department not in TOOL_DEPARTMENTS:
         return False
@@ -62,7 +70,23 @@ def _is_tool_flow(ctx: TurnContext) -> bool:
         return True  # the caller gave us an order to look at
     if j.intent in TOOL_INTENTS and j.confidence >= 60:
         return True
+    if j.department == "Order" and _PERSONAL_ORDER.search(ctx.text):
+        return True  # "my order...": look up the caller's order, do not recite policy
     return j.intent == "Order Issue" and bool(_ORDER_ACTION.search(ctx.text) or _ORDER_STATUS.search(ctx.text))
+
+
+RESUME = re.compile(r"\b(where were we|as i was saying|i'?m back|sorry about that|anyway,? (?:so|where)|haan toh|haan ji bataiye)\b", re.I)
+
+
+def _nothing_concrete(ctx: TurnContext) -> bool:
+    """No fault described and no recognisable request: never a first-time bug, ask what they need instead."""
+    j = ctx.judgment
+    return not _DEFECT.search(ctx.text) and (j.intent == "General Query" or j.confidence < 60)
+
+
+def _desk_can_work_it(ctx: TurnContext) -> bool:
+    """No document covers this, but a desk with tools can still act on it (look up the order, the payment, the account)."""
+    return ctx.judgment.department in TOOL_DEPARTMENTS and not _DEFECT.search(ctx.text) and not ctx.state.get("bug_flagged")
 
 
 async def decide(ctx: TurnContext) -> Decision:
@@ -80,7 +104,7 @@ async def decide(ctx: TurnContext) -> Decision:
 
     # Human bug follow-up: already flagged, waiting for the manager's suggestion.
     if st.get("bug_flagged") and not st.get("bug_suggestion_given") and st.get("awaiting") == "bug_followup":
-        if _is_tool_flow(ctx) and j.confidence >= 70:
+        if (_is_tool_flow(ctx) and j.confidence >= 70) or best >= s.known_path_score:
             # The caller moved on to something else we can handle now; the bug stays open with the team.
             st["bug_flagged"], st["awaiting"] = False, None
         else:
@@ -88,29 +112,47 @@ async def decide(ctx: TurnContext) -> Decision:
 
     if not _has_problem(ctx) and not st.get("awaiting"):
         return Decision("INSTANT", "No problem stated yet", 60, know, small_talk=True)
+    if RESUME.search(ctx.text):
+        return Decision("INSTANT", "Caller is back after talking to someone else", 60, know, small_talk=True)
 
     if _is_tool_flow(ctx):
         return Decision("ACTION", f"{j.department} desk with tools", max(j.confidence, int(best * 100)), know)
 
     # Knowledge path: consult both memories (memory-rulebook-detail.png).
-    if ret and ret.bugs:
+    query_text = ctx.text if len(ctx.text.split()) >= 6 else f"{st.get('subject', '')} {ctx.text}"
+    common_hits = sorted((ret.common + ret.graph) if ret else [], key=lambda h: h.score, reverse=True)[:3]
+    if ret and ret.bugs and not _desk_can_work_it(ctx):
         top_bug = ret.bugs[0]
         if top_bug.score >= s.known_path_score:
             if "Human suggestion:" in top_bug.text:
                 sugg = top_bug.text.split("Human suggestion:", 1)[1].strip()
                 return Decision("INSTANT", "Seen before — a human already suggested the fix", int(top_bug.score * 100),
                                 [top_bug] + know, bug_suggestion=sugg)
+            # The same question is open with the team, but documents may have been added since (or may just be
+            # relevant): if they really answer it, answer it. An unfamiliar error code is never "answered".
+            if ret.best_common >= s.first_time_bug_score:
+                ok, why = await jev.grounded(query_text, common_hits)
+                if ok:
+                    return Decision("INSTANT", "Documents answer it (an older open report matched too)",
+                                    int(ret.best_common * 100), common_hits, note=why)
             return Decision("KNOWN_OPEN_BUG", "Same unknown problem already open with the team",
                             int(top_bug.score * 100), [top_bug] + know)
 
     if best >= s.known_path_score:
         return Decision("INSTANT", "Known path in the rulebook", int(best * 100), know)
+    if best < s.first_time_bug_score and _nothing_concrete(ctx):
+        return Decision("INSTANT", "Nothing concrete to solve yet", int(best * 100), know, small_talk=True)
     if best < s.first_time_bug_score:
+        if _desk_can_work_it(ctx):
+            return Decision("ACTION", f"{j.department} desk with tools (nothing to look up in documents)", max(j.confidence, 55), know)
         return Decision("FIRST_TIME_BUG", f"No precedent (best match {best:.2f})", int(best * 100), know)
 
     # Grey zone: does the retrieved text really answer *this* problem?
-    query_text = ctx.text if len(ctx.text.split()) >= 6 else f"{st.get('subject', '')} {ctx.text}"
     ok, why = await jev.grounded(query_text, know)
     if ok:
         return Decision("INSTANT", "Knowledge addresses the problem", int(best * 100), know, note=why)
+    if _nothing_concrete(ctx):
+        return Decision("INSTANT", "Nothing concrete to solve yet", int(best * 100), know, small_talk=True)
+    if _desk_can_work_it(ctx):
+        return Decision("ACTION", f"{j.department} desk with tools (documents do not cover it)", max(j.confidence, 55), know, note=why)
     return Decision("FIRST_TIME_BUG", "Retrieved knowledge does not cover this problem", int(best * 100), know, note=why)

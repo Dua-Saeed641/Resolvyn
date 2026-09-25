@@ -63,7 +63,13 @@ _NO = re.compile(r"\b(no|nope|nah|don't|do not|not now|never mind|nevermind|leav
 _DONE = re.compile(
     r"\b(that'?s (?:all|it|everything)|nothing else|no,? that'?s it|that is all|i'?m good|all good|"
     r"bye|goodbye|thank(?:s| you)(?: so much| a lot)?|thanks a lot|you'?ve been (?:helpful|great)|"
-    r"shukriya|dhanyavaad|dhanyavad|that'?s helpful|that helps|great,? thanks)\b", re.I)
+    r"shukriya|dhanyavaad|dhanyavad|dhanyawad|bas itna(?: hi)?|bas yehi|bas ho gaya|that'?s helpful|that helps|great,? thanks)\b", re.I)
+# "Are you a real person or a bot?" asks what Riya is; it does not ask for a person to take over.
+IDENTITY_QUESTION = re.compile(
+    r"\b(?:are|r) (?:you|u) (?:a |an )?(?:real |actual |live )?(?:person|human|bot|robot|ai|machine|computer|recording)|"
+    r"(?:am i|is this) (?:talking|speaking) (?:to|with) (?:a |an )?(?:real |actual )?(?:person|human|bot|robot|ai|machine)|"
+    r"(?:real|actual) (?:person|human) or (?:a )?(?:bot|robot|ai|machine)|kya (?:aap|tum) (?:robot|bot|insaan|real)", re.I)
+PERSONAL_ORDER = re.compile(r"\b(i ordered|i placed|placed an order|my order|my parcel|my package|maine order|ordered something)\b")
 _QUESTION = re.compile(r"\?|^\s*(what|when|where|why|how|can|could|will|would|do|does|is|are)\b", re.I)
 
 
@@ -143,15 +149,20 @@ def rules_judge(text: str, prior: Judgment | None = None, *, plan: str | None = 
     else:
         j.intent, j.department, j.confidence = "General Query", "Other", 32
 
+    # "I ordered something and wanted to check on it": an order question, but only when nothing stronger matched
+    if j.intent == "General Query" and PERSONAL_ORDER.search(low):
+        j.intent, j.department, j.confidence = "Order Issue", "Order", 62
+
     # A follow-up ("my name is Aarav, order ORD-83921") must not flip the department
     # because a weak keyword matched: carry the earlier intent unless evidence is strong.
     if prior and prior.intent != "General Query" and not j.carried and top != prior.intent:
-        if top_s < 3.0 or j.confidence < 78:
+        new_question = top_s >= 1.0 and bool(_QUESTION.search(text)) and len(text.split()) >= 5
+        if (top_s < 3.0 or j.confidence < 78) and not new_question:
             j.intent, j.department, j.carried = prior.intent, prior.department, True
             j.confidence = max(60, prior.confidence - 4)
 
     j.sentiment = _sentiment(low, prior.sentiment if prior else None)
-    j.wants_human = any(p in low for p in HUMAN_REQUEST)
+    j.wants_human = any(p in low for p in HUMAN_REQUEST) and not IDENTITY_QUESTION.search(low)
     j.urgency = "High" if any(w in low for w in URGENCY_HIGH) else ("Medium" if j.sentiment in ("Frustrated", "Angry") else "Low")
     j.yes, j.no, j.done = dialogue_act(text)
 
@@ -310,15 +321,16 @@ async def grounded(query_text: str, hits: list) -> tuple[bool, str]:
     unseen_codes = [c for c in codes if c.replace("-", "") not in haystack.replace("-", "").replace(" ", "")]
     if not llm.ready("fast"):
         return (not unseen_codes), ("unseen error code " + unseen_codes[0]) if unseen_codes else "no model; score-based"
-    passages = "\n".join(f"- {h.title}: {h.text[:280]}" for h in hits[:2])
+    passages = "\n".join(f"- {h.title}: {h.text[:420]}" for h in hits[:3])
     try:
         out = await asyncio.wait_for(
             llm.complete_json(
                 [
                     {"role": "system", "content": (
-                        "You check whether company documents contain a specific fix for a customer's problem. "
-                        "answers=true only if a passage directly addresses this exact symptom or error. "
-                        "General passages about a different problem mean answers=false. Reply with JSON only.")},
+                        "You check whether company documents help answer a customer's question. "
+                        "answers=true if any passage contains information that answers it or gives the procedure to follow, "
+                        "even if only in part. answers=false only if the passages are about something unrelated. "
+                        "Reply with JSON only.")},
                     {"role": "user", "content": f"Customer problem: {query_text}\n\nPassages:\n{passages}"},
                 ],
                 _GROUND_SCHEMA, tier="fast", max_tokens=14, temperature=0.0,

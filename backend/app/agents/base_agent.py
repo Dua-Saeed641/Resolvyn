@@ -31,6 +31,8 @@ class Plan:
     escalate: str | None = None  # reason, if a human must take this
     use_knowledge: bool = True  # include retrieved SOP passages in the prompt
     next_step: str | None = None  # one line for the team side
+    must_say: list[str] = field(default_factory=list)  # words the spoken reply must contain (else the fallback line is added)
+    verbatim: bool = False  # say the fallback line as written, without asking the model to rephrase it
 
 
 @dataclass
@@ -52,6 +54,64 @@ class BaseAgent(ABC):
 
     async def tool(self, ctx: TurnContext, tool_name: str, **kw):
         return await tool_service.call(ctx.ticket_id, tool_name, self.name, **kw)
+
+    def adopt_customer(self, ctx: TurnContext, cust: dict) -> None:
+        """The caller is now known: remember it for the session, the ticket and the persona."""
+        from app.services import ticket_service as tickets
+
+        ctx.state["customer_id"] = cust["customer_id"]
+        ctx.customer = cust
+        ctx.session.customer = cust
+        tickets.update(ctx.ticket_id, customer_id=cust["customer_id"], customer_name=cust["name"])
+
+    async def orders_of_caller(self, ctx: TurnContext, prefer=None) -> "Plan | None":
+        """No order ID yet: if the caller is known (or gave email / phone digits) work from their own orders.
+
+        Sets state["order_id"] and returns None when the order is clear; returns a Plan when something must be asked.
+        `prefer(order) -> awaitable bool` picks the relevant order when there are several (e.g. the one with a duplicate charge).
+        """
+        st, ent = ctx.state, ctx.entities
+        customer = ctx.customer
+        email, last4 = ent.get("email") or st.get("email"), ent.get("phone_last4") or st.get("phone_last4")
+        if not customer and (email or last4):
+            ok, cust = await self.tool(ctx, "find_customer", email=email, phone_last4=last4)
+            if ok and cust:
+                self.adopt_customer(ctx, cust)
+                customer = cust
+            elif ok:
+                st["email"] = st["phone_last4"] = None
+                return Plan(
+                    goal="Nothing matched that email or phone number. Say so kindly and ask for the order ID instead.",
+                    fallback="Hmm, I couldn't find an account with that. Do you have the order ID handy?",
+                    facts=["No customer matched the email / phone digits given"], agent_state="ANALYZING", operation="Customer not found",
+                )
+        if not customer:
+            return None
+        ok, orders = await self.tool(ctx, "orders_for_customer", customer_id=customer["customer_id"])
+        orders = [o for o in (orders or []) if o["status"] != "Cancelled"] if ok else []
+        if not orders:
+            return Plan(
+                goal="You checked their account and there are no orders on it. Say that and ask if the order was placed with another email or phone number.",
+                fallback="I checked your account and I can't see any orders on it. Could it be under another email or phone number?",
+                facts=["The caller's account has no orders"], agent_state="ANALYZING", operation="No orders on account",
+            )
+        if len(orders) > 1 and prefer:
+            hits = [o for o in orders if await prefer(o)]
+            if len(hits) == 1:
+                orders = hits
+        if len(orders) == 1:
+            st["order_id"] = orders[0]["order_id"]
+            from app.services import ticket_service as tickets
+
+            tickets.update(ctx.ticket_id, order_id=st["order_id"])
+            return None
+        st["awaiting"], st["order_choices"] = "order_choice", orders[:5]
+        listing = "; ".join(f"{o['item']} (order {o['order_id']}, placed {o['placed']}, {o['status']})" for o in orders[:5])
+        return Plan(
+            goal="They have more than one order. Name the items and ask which one they mean.",
+            fallback="I can see a few orders on your account. Which one do you mean? " + ", ".join(o["item"] for o in orders[:5]) + "?",
+            facts=[f"The caller's orders: {listing}"], agent_state="ANALYZING", operation="Choosing an order",
+        )
 
     async def identify(self, ctx: TurnContext, order: dict) -> bool:
         """Tie the caller to the account that owns the order.

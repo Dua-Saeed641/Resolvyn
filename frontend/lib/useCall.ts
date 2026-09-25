@@ -405,6 +405,14 @@ export function useCall() {
       setStatus("connecting");
 
       if (opts.mode === "voice") {
+        // Mobile browsers only allow audio that was "unlocked" inside a tap: play a silent clip now.
+        try {
+          const unlock = new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgLsAAAB3AQACABAAZGF0YQAAAAA=");
+          unlock.volume = 0;
+          await unlock.play().catch(() => undefined);
+        } catch {
+          /* best effort */
+        }
         if (!SR && !serverStt) {
           setError("Voice needs Chrome or Edge (or a Gnani key on the server). Switch to chat mode to type instead.");
           setStatus("idle");

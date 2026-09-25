@@ -31,6 +31,10 @@ SYNONYMS = {
     "passcode": "password", "pwd": "password", "otp": "otp",
     "cancelled": "cancel", "cancelling": "cancel", "cancellation": "cancel",
     "broken": "damage", "damaged": "damage", "defective": "damage", "faulty": "damage",
+    "cost": "price", "costs": "price", "pricing": "price", "priced": "price", "expensive": "price", "rupees": "price",
+    "collect": "pickup", "collection": "pickup", "collecting": "pickup", "pick": "pickup", "pickup": "pickup",
+    "wrapped": "wrap", "wrapping": "wrap", "gift": "gift", "guarantee": "warranty", "guaranteed": "warranty",
+    "hours": "hour", "timings": "hour", "timing": "hour", "open": "hour", "opening": "hour",
 }
 
 _TOKEN = re.compile(r"[a-z0-9ऀ-ॿ]+")

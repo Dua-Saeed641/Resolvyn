@@ -4,6 +4,9 @@ Hero flow (project.md §4, §47): duplicate charge → verify → policy → pro
 refund → human approval gate → execute → verify → tell the caller.
 """
 
+import re
+from datetime import datetime
+
 from app.agents.base_agent import BaseAgent, Plan, TurnContext, money
 from app.config import get_settings
 from app.database import engine
@@ -13,17 +16,26 @@ from app.utils import jdump, jload
 from sqlmodel import Session
 
 REFUND_INTENTS = {"Duplicate Payment", "Refund Request"}
+# The caller answers "want me to refund it?" with a question about the charges instead of yes/no.
+_DETAILS = re.compile(r"\b(what|which|how much|tell me|explain|details|exactly|show me|breakdown|kitn[ae]|kab|kya|batao|bataiye)\b", re.I)
 
 
 class BillingAgent(BaseAgent):
     name = "Billing"
     persona = "You are on the billing desk: calm, precise and reassuring about money."
 
+    async def _has_duplicate(self, ctx: TurnContext, order: dict) -> bool:
+        ok, txns = await self.tool(ctx, "get_payment_transactions", order_id=order["order_id"])
+        ok_txns = [t for t in (txns or []) if t["status"] == "SUCCESS"] if ok else []
+        return any(a["amount"] == b["amount"] and a["method"] == b["method"] for i, a in enumerate(ok_txns) for b in ok_txns[i + 1:])
+
     async def plan(self, ctx: TurnContext) -> Plan:
         st, j = ctx.state, ctx.judgment
         limit = get_settings().refund_auto_limit
 
         # ── answering a question we asked ────────────────────────────────────
+        if st.get("awaiting") == "confirm_refund" and st.get("refund_candidate") and _DETAILS.search(ctx.text):
+            return await self._explain_charges(ctx)
         if st.get("awaiting") == "confirm_refund" and st.get("refund_candidate"):
             if j.yes and not j.no:
                 return await self._request_refund(ctx, limit)
@@ -37,13 +49,24 @@ class BillingAgent(BaseAgent):
         if st.get("awaiting") == "approval":
             act = self._pending(st)
             return Plan(
-                goal="The refund is with the team lead for approval and is NOT done yet. Reassure the caller, say you'll tell them the moment it's approved, and ask them to stay on the line.",
+                goal="The refund is with the team lead for approval and is NOT done yet. If they asked how long it takes, answer with the timeline from the facts (it starts after approval). Otherwise reassure them briefly and say you'll tell them the moment it's approved. Do not ask them to repeat anything.",
                 fallback="It's with my team lead for a quick approval. I'll tell you the moment it's done, so please stay on the line.",
-                facts=[f"Refund of {money(act['params']['amount'])} for {act['params']['order_id']} is waiting for human approval (not executed)"] if act else [],
+                facts=([f"Refund of {money(act['params']['amount'])} for {act['params']['order_id']} is waiting for human approval (not executed)"] if act else [])
+                + [self._timeline(st)],
                 status="WAITING_FOR_HUMAN", agent_state="WAITING", operation="Awaiting human approval",
             )
 
         # ── need an order to look at ─────────────────────────────────────────
+        if st.get("awaiting") == "order_choice" and st.get("order_choices"):
+            from app.agents.order_agent import OrderAgent
+
+            picked = OrderAgent._pick_order(ctx.text, st["order_choices"])
+            if picked:
+                st["order_id"], st["awaiting"], st["order_choices"] = picked["order_id"], None, None
+        if not st.get("order_id"):
+            plan = await self.orders_of_caller(ctx, prefer=lambda o: self._has_duplicate(ctx, o))
+            if plan:
+                return plan
         order_id = st.get("order_id")
         if not order_id:
             st["awaiting"] = "order_id"
@@ -111,7 +134,8 @@ class BillingAgent(BaseAgent):
             if not ok:
                 return self._service_down(ctx, "the refund policy service")
             if policy.get("eligible"):
-                st["refund_candidate"] = {"order_id": order_id, "transaction_id": policy["transaction_id"], "amount": policy["amount"]}
+                method = next((t["method"] for t in txns if t["transaction_id"] == policy["transaction_id"]), "")
+                st["refund_candidate"] = {"order_id": order_id, "transaction_id": policy["transaction_id"], "amount": policy["amount"], "method": method}
                 st["awaiting"] = "confirm_refund"
                 facts.append(f"Duplicate confirmed: {policy['transaction_id']} is a second successful charge of {money(policy['amount'])} for the same order")
                 facts.append(f"Policy check: eligible — {policy['policy']}")
@@ -135,6 +159,41 @@ class BillingAgent(BaseAgent):
             goal="Answer the caller's billing question using the facts and the knowledge passages. Keep it short.",
             fallback="Here's what I can see on that order. Is there anything specific you want me to check?",
             facts=facts, status="ACTIVE", path="INSTANT", agent_state="COMPLETED", operation="Payment records shared",
+        )
+
+    @staticmethod
+    def _timeline(st: dict) -> str:
+        method = (st.get("refund_candidate") or {}).get("method", "")
+        if method.lower().startswith("card"):
+            return f"Once approved and executed, the refund goes back to the same card ({method}) in 3 to 5 working days, and some banks take up to 7"
+        if method.lower().startswith("upi"):
+            return "Once approved and executed, the refund goes back to the same UPI account in 3 to 5 working days, at most 5"
+        return "Once approved and executed, the money reaches the original payment method in 3 to 5 working days"
+
+    async def _explain_charges(self, ctx: TurnContext) -> Plan:
+        """They asked what exactly was charged: read the two transactions out, then ask again about the refund."""
+        cand = ctx.state["refund_candidate"]
+        ok, txns = await self.tool(ctx, "get_payment_transactions", order_id=cand["order_id"])
+        if not ok:
+            return self._service_down(ctx, "the payment service")
+        paid = [t for t in txns if t["status"] == "SUCCESS"]
+        facts = [f"Charge {t['transaction_id']}: {money(t['amount'])} on {t['method']} at {t['timestamp']}" for t in paid]
+        gap = ""
+        if len(paid) >= 2:
+            try:
+                secs = abs((datetime.fromisoformat(paid[1]["timestamp"]) - datetime.fromisoformat(paid[0]["timestamp"])).total_seconds())
+                gap = f", {int(secs)} seconds apart"
+                facts.append(f"The two charges were {int(secs)} seconds apart on the same payment method")
+            except ValueError:
+                pass
+        facts.append(f"{cand['transaction_id']} is the duplicate that would be refunded ({money(cand['amount'])})")
+        first = paid[0] if paid else None
+        fb = (f"Sure. There are two charges of {money(cand['amount'])} on {first['method']}{gap}, for the same order. "
+              "The second one is the duplicate. Want me to refund it?") if first else "I can see two charges for that order. Want me to refund the duplicate one?"
+        return Plan(
+            goal="They asked what the two charges were. Say the two charges plainly (amount, how it was paid, that they were seconds apart) using only the facts, then ask again if they want the duplicate refunded.",
+            fallback=fb, facts=facts, status="ACTIVE", path="ACTION", agent_state="ACTING", operation="Explaining the charges",
+            must_say=[money(cand["amount"]).replace("₹", ""), "twice", "two"], use_knowledge=False,
         )
 
     # ── the refund request path ──────────────────────────────────────────────

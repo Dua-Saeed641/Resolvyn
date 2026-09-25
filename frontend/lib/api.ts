@@ -4,7 +4,11 @@
  * error handling stay in one place.
  */
 
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
+// Same-origin by default (Next proxies /api and /ws to the backend, see next.config.mjs), so the app works unchanged on
+// localhost, on a phone, and behind a tunnel. NEXT_PUBLIC_API_BASE_URL can still point at a different backend.
+const explicit = process.env.NEXT_PUBLIC_API_BASE_URL;
+const origin = typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1:3000";
+export const API_BASE_URL = explicit || `${origin}/api`;
 const ORIGIN = API_BASE_URL.replace(/\/api\/?$/, "");
 export const WS_BASE_URL = ORIGIN.replace(/^http/, "ws");
 

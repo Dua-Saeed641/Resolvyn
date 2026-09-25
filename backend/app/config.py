@@ -59,6 +59,12 @@ class Settings(BaseSettings):
     tts_rate: str = "+8%"
 
     # ── Phone (Twilio Media Streams; any provider that streams 8 kHz mu-law works the same way) ──
+    # Map real numbers to demo customers so your own phone is recognised: "+919876543210:CUS-20481,+911234567890:CUS-20517"
+    phone_aliases: str = ""
+    # Twilio REST credentials: only needed for the "Call me" button (Twilio dials your phone and connects it to the agent)
+    twilio_account_sid: str | None = None
+    twilio_auth_token: str | None = None
+    twilio_phone_number: str | None = None  # the Twilio number Twilio calls you from, e.g. +15551234567
     public_base_url: str | None = None  # e.g. https://abc123.ngrok.app — where the phone provider reaches this API
 
     # ── Decision thresholds ──────────────────────────────────────────────────

@@ -46,13 +46,31 @@ def extract_text(filename: str, data: bytes) -> str:
             for row in table.rows:
                 lines.append(" | ".join(c.text.strip() for c in row.cells))
         return "\n".join(lines)
-    text = data.decode("utf-8", errors="replace")
+    text = data.decode("utf-8-sig", errors="replace")
+    if name.endswith(".csv"):
+        return _csv_to_text(text)
     if name.endswith(".json"):
         try:
             return _flatten_json(json.loads(text))
         except Exception:
             return text
     return text
+
+
+def _csv_to_text(text: str) -> str:
+    """A spreadsheet row is a fact: keep it whole, as its own paragraph ("column: value, column: value")."""
+    import csv
+
+    rows = list(csv.reader(io.StringIO(text)))
+    if len(rows) < 2:
+        return text
+    head = [h.strip() for h in rows[0]]
+    out = []
+    for r in rows[1:]:
+        cells = [f"{h}: {v.strip()}" for h, v in zip(head, r) if v.strip()]
+        if cells:
+            out.append(", ".join(cells))
+    return "\n\n".join(out)
 
 
 def _flatten_json(obj, prefix: str = "") -> str:
@@ -104,7 +122,13 @@ def chunk_text(title: str, text: str) -> list[tuple[str, str]]:
 
     chunks: list[tuple[str, str]] = []
     for h, body in blocks:
-        paras = [p.strip() for p in re.split(r"\n\s*\n", body) if p.strip()]
+        paras = []
+        for p_ in (x.strip() for x in re.split(r"\n\s*\n", body) if x.strip()):
+            if len(p_.split()) > MAX_WORDS * 1.4:
+                sentences = re.split(r"(?<=[.!?])\s+", p_.replace("\n", " "))
+                paras.extend(s_ for s_ in sentences if s_)
+            else:
+                paras.append(p_)
         cur: list[str] = []
         words = 0
         for p in paras:
@@ -143,7 +167,8 @@ def ingest_text(
     if not text:
         raise ValueError("document is empty")
     kind = kind or guess_kind(title, text)
-    doc_default = department or classify_department(title + "\n" + text)
+    # Product data is shared knowledge every agent may use, so it lives under "Other" unless told otherwise.
+    doc_default = department or ("Other" if kind == "product_db" else classify_department(title + "\n" + text))
     pieces = chunk_text(title, text)
     if not pieces:
         raise ValueError("no readable content found in the document")
@@ -158,7 +183,7 @@ def ingest_text(
         s.commit()
         s.refresh(doc)
         for ctitle, ctext in pieces:
-            dept = department or classify_department(ctitle + "\n" + ctext, default=doc_default)
+            dept = department or (doc_default if kind == "product_db" else classify_department(ctitle + "\n" + ctext, default=doc_default))
             s.add(MemoryChunk(store=store, kind=kind, department=dept, title=ctitle, text=ctext,
                               document_id=doc.document_id, source=title))
             per_dept[dept] = per_dept.get(dept, 0) + 1

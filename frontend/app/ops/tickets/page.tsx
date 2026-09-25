@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { AppShell } from "@/components/layout/AppShell";
-import { TicketRow, TicketTableHeader } from "@/components/ops/TicketRow";
+import { TicketCard } from "@/components/ops/TicketCard";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Card, inputCls } from "@/components/ui/primitives";
+import { inputCls } from "@/components/ui/primitives";
 import { useLive } from "@/lib/live";
 import { cx } from "@/lib/utils";
 
@@ -21,7 +21,7 @@ const FILTERS = [
 ] as const;
 
 export default function TicketsPage() {
-  const { tickets } = useLive();
+  const { tickets, approvals } = useLive();
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["id"]>("all");
   const [agent, setAgent] = useState("");
   const [sentiment, setSentiment] = useState("");
@@ -48,6 +48,12 @@ export default function TicketsPage() {
     }
     return true;
   });
+
+  const pendingByTicket = useMemo(() => {
+    const m: Record<string, (typeof approvals)[number]> = {};
+    for (const a of approvals) if (a.status === "PENDING" && !m[a.ticket_id]) m[a.ticket_id] = a;
+    return m;
+  }, [approvals]);
 
   return (
     <AppShell title="Tickets">
@@ -81,22 +87,15 @@ export default function TicketsPage() {
           <input aria-label="Search tickets" className={cx(inputCls, "ml-auto w-64 py-1.5 text-xs")} placeholder="Search ticket, customer, intent, agent…" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
 
-        <Card bodyClass="p-0">
-          {shown.length === 0 ? (
-            <div className="p-4">
-              <EmptyState title="No tickets match" description={all.length ? "Change the filters to see more tickets." : "No support tickets yet. Start a call on the customer side or run a demo from the Overview."} />
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <div className="min-w-[1040px]">
-                <TicketTableHeader />
-                {shown.map((t) => (
-                  <TicketRow key={t.ticket_id} ticket={t} now={now} />
-                ))}
-              </div>
-            </div>
-          )}
-        </Card>
+        {shown.length === 0 ? (
+          <EmptyState title="No tickets match" description={all.length ? "Change the filters to see more tickets." : "No support tickets yet. Start a call on the customer side or run a demo from the Overview."} />
+        ) : (
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {shown.map((t) => (
+              <TicketCard key={t.ticket_id} ticket={t} now={now} pending={pendingByTicket[t.ticket_id] ?? null} />
+            ))}
+          </div>
+        )}
       </div>
     </AppShell>
   );

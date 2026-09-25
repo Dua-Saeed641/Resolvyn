@@ -161,6 +161,8 @@ export interface Stats {
   intents: Record<string, number>;
   agent_activity: Record<string, number>;
   paths: Record<string, number>;
+  sentiment: Record<string, number>;
+  volume_by_hour: { label: string; count: number }[];
   ai_resolution_rate: number | null;
 }
 

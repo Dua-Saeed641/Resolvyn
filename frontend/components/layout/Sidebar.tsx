@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  Activity, BarChart3, BookOpen, Bot, Brain, Database, GraduationCap, LayoutDashboard, Mail, Settings, ShieldCheck, Ticket, Users,
+  Activity, BarChart3, BookOpen, Bot, Brain, Database, GraduationCap, LayoutDashboard, Mail, Network, Settings, ShieldCheck, Ticket, Users,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -19,6 +19,7 @@ const NAV_GROUPS: { heading?: string; items: Item[] }[] = [
     items: [
       { label: "Tickets", href: "/ops/tickets", icon: Ticket },
       { label: "Agents", href: "/ops/agents", icon: Bot },
+      { label: "Routing", href: "/ops/routing", icon: Network },
       { label: "Customers", href: "/ops/customers", icon: Users },
       { label: "Emails", href: "/ops/emails", icon: Mail },
       { label: "Activity", href: "/ops/activity", icon: Activity },

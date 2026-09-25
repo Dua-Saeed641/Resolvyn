@@ -1,30 +1,41 @@
-"""Routing decisions — spec §22. Derived from real ticket + orchestrator
-data rather than a separate fabricated log, so it can never drift from
-what actually happened (docs/claude.md, "traceable actions").
+"""Routing decisions — spec §22, §40. Read straight from the AGENT_ASSIGNED
+event agents/nodes.py::route_agent already writes (with its swarm-routing
+meta payload, agents/swarm_router.py) rather than a second, potentially
+drifting copy of the same decision (docs/claude.md, "traceable actions").
 """
 
 from sqlmodel import Session, select
 
-from app.agents.orchestrator import route
+from app.models.agent_event import AgentEvent
 from app.models.ticket import Ticket
+from app.utils import iso, jload
 
 
-def list_routing_decisions(session: Session) -> list[dict]:
-    tickets = session.exec(select(Ticket).order_by(Ticket.updated_at.desc())).all()
+def list_routing_decisions(session: Session, limit: int = 100) -> list[dict]:
+    tickets = session.exec(select(Ticket).order_by(Ticket.updated_at.desc()).limit(limit)).all()
     decisions = []
     for ticket in tickets:
-        if not ticket.intent or not ticket.assigned_agent:
+        latest = session.exec(
+            select(AgentEvent)
+            .where(AgentEvent.ticket_id == ticket.ticket_id, AgentEvent.event_type == "AGENT_ASSIGNED")
+            .order_by(AgentEvent.event_id.desc())
+            .limit(1)
+        ).first()
+        if latest is None:
             continue
-        _, reason = route(ticket.intent)
-        decisions.append(
-            {
-                "ticket_id": ticket.ticket_id,
-                "issue": ticket.subject,
-                "intent": ticket.intent,
-                "destination": ticket.assigned_agent,
-                "confidence": ticket.confidence,
-                "reason": reason,
-                "timestamp": ticket.updated_at,
-            }
-        )
+        swarm = (jload(latest.meta_json, {}) or {}).get("swarm")
+        if not swarm:
+            continue  # a ticket routed before this feature existed — no swarm data to show, not an error
+        decisions.append({
+            "ticket_id": ticket.ticket_id,
+            "issue": ticket.subject,
+            "intent": ticket.intent,
+            "candidates": swarm.get("candidates", []),
+            "winner": swarm.get("winner"),
+            "runner_up": swarm.get("runner_up"),
+            "activation_gap": swarm.get("activation_gap"),
+            "ambiguous": swarm.get("ambiguous"),
+            "reason": swarm.get("routing_reason"),
+            "timestamp": iso(latest.timestamp),
+        })
     return decisions

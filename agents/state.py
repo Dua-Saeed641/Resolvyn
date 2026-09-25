@@ -42,9 +42,14 @@ class ResolvynState(TypedDict, total=False):
     decision_reason: str
     decision_confidence: int
 
-    # ── routing ──────────────────────────────────────────────────────────────
+    # ── routing (agents/swarm_router.py — bio-inspired mixture-of-experts) ──
     selected_agent: str
     routing_reason: str
+    swarm_activations: list[dict]  # every candidate's ExpertActivation, for the dashboard's routing breakdown
+    swarm_winner: str | None
+    swarm_runner_up: str | None
+    swarm_activation_gap: float
+    swarm_ambiguous: bool
 
     # ── specialist agent execution ───────────────────────────────────────────
     agent_state: dict  # TurnContext.state — the agent's own scratch space
@@ -86,6 +91,11 @@ def new_state(ticket_id: str, text: str, *, channel: str = "Ticket", language: s
         customer=None,
         entities={},
         agent_state={},
+        swarm_activations=[],
+        swarm_winner=None,
+        swarm_runner_up=None,
+        swarm_activation_gap=0.0,
+        swarm_ambiguous=False,
         pending_action_id=None,
         bug_id=None,
         human_gate_required=False,

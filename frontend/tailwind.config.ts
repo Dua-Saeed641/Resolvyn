@@ -38,6 +38,17 @@ const config: Config = {
         warning: v("warning"),
         danger: v("danger"),
         info: v("info"),
+        // Categorical chart palette (analytics dashboard only) — fixed slot order maps
+        // 1:1 to lib/constants.ts's DEPARTMENTS, dark-mode steps from the dataviz skill's
+        // validated default (references/palette.md), re-checked with its colorblind-safety
+        // validator for this 5-slot subset. Never reorder or reassign a slot's department.
+        chart: {
+          1: "#3987e5", // Technical
+          2: "#d95926", // Billing
+          3: "#199e70", // Account
+          4: "#c98500", // Order
+          5: "#d55181", // Other
+        },
       },
       fontFamily: {
         sans: ["var(--font-sans)", "Inter", "system-ui", "-apple-system", "Segoe UI", "sans-serif"],

@@ -16,6 +16,7 @@ const NAV_GROUPS = [
       { label: "Agents", href: "/ops/agents" },
       { label: "Customers", href: "/ops/customers" },
       { label: "Knowledge", href: "/ops/knowledge" },
+      { label: "Business data", href: "/ops/business-data" },
       { label: "Memory", href: "/ops/memory" },
       { label: "Activity", href: "/ops/activity" },
     ],

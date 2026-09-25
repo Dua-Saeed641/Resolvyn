@@ -88,7 +88,7 @@ async def call_ws(ws: WebSocket):
                 if is_echo(session, text):
                     return
                 hub.to_session(session.session_id, {"type": "heard", "text": text})
-                conversation.submit(session, text)
+                conversation.submit(session, text, voice=True)
 
             async def on_speech_start() -> None:
                 hub.to_session(session.session_id, {"type": "user_speaking"})

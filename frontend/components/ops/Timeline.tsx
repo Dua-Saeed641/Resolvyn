@@ -51,7 +51,7 @@ const LABEL: Record<string, string> = {
 
 /** project.md §37: the activity timeline — one of the most important parts of the demo. */
 export function Timeline({ events, showTicket = false, newestFirst = false }: { events: AgentEvent[]; showTicket?: boolean; newestFirst?: boolean }) {
-  const list = newestFirst ? events : events;
+  const list = (newestFirst ? events : events).filter((e) => e.event_type !== "TURN_TRACE"); // turns are shown in the Live AI brain
   return (
     <ol className="relative space-y-0">
       {list.map((e) => (

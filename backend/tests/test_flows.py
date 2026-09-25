@@ -37,8 +37,9 @@ def _open(client, customer_id: str):
 def test_duplicate_payment_refund_needs_and_gets_human_approval(client):
     ws, c, tid = _open(client, "CUS-20481")
     try:
-        assert "order id" in _said(_turn(c, "Hi, I was charged twice for the same order and want a refund.")).lower()
-        assert "2,499" in _said(_turn(c, "The order ID is ORD-83921."))
+        # a known caller does not have to read out an order ID: the desk finds the order with the duplicate charge itself
+        first = _said(_turn(c, "Hi, I was charged twice for the same order and want a refund."))
+        assert "2,499" in first and "83921" in first.replace("-", "")
 
         # The refund is over the auto-approval limit: it must wait for a human, not be claimed as done.
         reply = _said(_turn(c, "Yes please refund the duplicate one."))
@@ -196,3 +197,28 @@ def test_demo_mode_runs_a_scripted_caller_through_the_real_pipeline(client):
     detail = client.get(f"/api/tickets/{ticket['ticket_id']}").json()
     assert any(h["operator"].endswith("(demo)") for h in detail["human_actions"])
     assert ("verify_refund", "COMPLETED") in [(c["tool_name"], c["status"]) for c in detail["tool_calls"]]
+
+
+def test_ingested_documents_are_used_to_answer_and_shape_routing(client):
+    """A manager's own SOP + product sheet become answerable knowledge, routed to the right department."""
+    r = client.post("/api/knowledge/ingest-text", json={
+        "title": "Store pickup SOP", "kind": "sop",
+        "text": "# Store pickup\nCustomers can collect online orders from any store. Orders are held for 5 days. Bring the order ID and a photo ID.\n",
+    })
+    assert r.status_code == 200
+    csv_row = b"sku,name,price_inr,warranty\nNV-SPK-05,Portable Speaker Mini,1799,1 year\n"
+    r = client.post("/api/knowledge/ingest", files={"files": ("products.csv", csv_row)}, data={"kind": "product_db"})
+    assert r.status_code == 200 and r.json()["ingested"][0]["departments"] == {"Other": 1}  # product data is shared
+
+    ws, c, tid = _open(client, "CUS-20702")
+    try:
+        _turn(c, "Can I pick up my online order from the store?")
+        t = client.get(f"/api/tickets/{tid}").json()
+        assert not t["is_first_time_bug"] and t["resolution_path"] == "INSTANT"
+        assert any("pickup" in k["title"].lower() for k in t["knowledge"])
+        _turn(c, "How much does the Portable Speaker Mini cost?")
+        t = client.get(f"/api/tickets/{tid}").json()
+        assert not t["is_first_time_bug"]
+    finally:
+        c.send_json({"type": "end"})
+        ws.__exit__(None, None, None)

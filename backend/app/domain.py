@@ -39,7 +39,8 @@ INTENTS: dict[str, tuple[str, list[str]]] = {
         "update profile", "change my name", "close my account", "delete my account",
     ]),
     "Shipping Delay": ("Order", [
-        "not delivered", "hasn't arrived", "has not arrived", "delayed", "delay", "where is my order",
+        "not delivered", "hasn't arrived", "has not arrived", "delayed", "delay", "where is my order", "where is the parcel", "where is the package", "where is the order", "where is the delivery",
+        "where's the parcel", "where's the package", "where's the order", "parcel", "package",
         "where's my order", "where my order", "where is my parcel", "where is my package", "status of my order",
         "order status", "track my order", "track it", "tracking", "when will my order", "when will it arrive",
         "courier", "shipment", "still not here", "late delivery", "delivery",
@@ -49,6 +50,8 @@ INTENTS: dict[str, tuple[str, list[str]]] = {
         "wrong item", "wrong colour", "wrong color", "damaged", "broken when", "missing item", "cancel my order",
         "cancel order", "cancel it", "return", "replace", "replacement", "exchange", "order",
         "cancel karna", "galat item", "कैंसल", "ऑर्डर",
+        "mera order", "apna order", "maine order", "order kiya", "order ke baare", "order ka status",
+        "pick up", "pickup", "collect my order", "collect from the store", "store pickup", "gift wrap", "gift wrapping",
     ]),
     "Technical Issue": ("Technical", [
         "not working", "doesn't work", "does not work", "stopped working", "error", "crash", "crashing",
@@ -56,9 +59,10 @@ INTENTS: dict[str, tuple[str, list[str]]] = {
         "wont turn on", "flashing", "blinking", "light", "app", "update", "freezing", "stuck", "code",
         "not connecting", "won't connect", "no sound", "screen",
         "kaam nahi kar raha", "chal nahi raha", "काम नहीं कर रहा", "चल नहीं रहा",
+        "under warranty", "warranty claim", "warranty", "stopped working", "repair",
     ]),
     "General Query": ("Other", [
-        "store hours", "opening hours", "contact", "address of", "feedback", "complaint", "partnership",
+        "how much", "what is the price", "price of", "does it come with", "store hours", "opening hours", "contact", "address of", "feedback", "complaint", "partnership",
         "job", "career", "hello", "hi", "thanks",
     ]),
 }
@@ -78,7 +82,7 @@ DEPARTMENT_KEYWORDS: dict[str, list[str]] = {
         "exchange", "cancel", "cancellation", "dispatch", "carrier", "warehouse",
     ],
     "Technical": [
-        "troubleshoot", "error", "firmware", "reset", "bluetooth", "pair", "battery", "app", "crash", "install",
+        "warranty", "defect", "defective", "repair", "fault", "malfunction", "troubleshoot", "error", "firmware", "reset", "bluetooth", "pair", "battery", "app", "crash", "install",
         "reinstall", "device", "led", "light", "connect", "connectivity", "software", "update", "cache", "bug",
     ],
 }
@@ -116,7 +120,7 @@ ON_TOPIC_CUES = [
     "order", "refund", "payment", "charged", "account", "login", "password", "ticket", "delivery", "shipment",
     "cancel", "return", "app", "error", "email", "otp", "invoice", "issue", "problem", "help", "support",
     "riya", "nova", "yes", "yeah", "okay", "ok", "no", "please", "thanks", "thank you", "sorry about that",
-    "go ahead", "sure", "correct", "right",
+    "go ahead", "sure", "correct", "right", "where were we", "as i was saying", "anyway", "i'm back", "i am back", "where were we", "as i was saying", "anyway", "i'm back", "i am back",
 ]
 
 FILLER_WORDS = {"uh", "um", "umm", "uhh", "hmm", "hmmm", "like", "so", "well", "actually", "basically"}

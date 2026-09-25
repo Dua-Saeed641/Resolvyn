@@ -92,3 +92,60 @@ def test_twilio_webhook_returns_a_stream_twiml(client):
     assert r.status_code == 200 and "<Stream url=" in r.text and "/ws/telephony/twilio" in r.text
     status = client.get("/api/telephony/status").json()
     assert status["webhook_url"].endswith("/api/telephony/twilio/voice")
+
+
+def test_call_me_asks_twilio_to_dial_the_users_phone(client, monkeypatch):
+    from app.api import telephony
+    from app.config import get_settings
+
+    s = get_settings()
+    for k, v in dict(twilio_account_sid="ACtest", twilio_auth_token="tok", twilio_phone_number="+15550001111",
+                     public_base_url="https://demo.example.dev").items():
+        monkeypatch.setattr(s, k, v)
+    sent = {}
+
+    class FakeResp:
+        status_code = 201
+        text = "{}"
+
+        def json(self):
+            return {"sid": "CA123"}
+
+    class FakeClient:
+        def __init__(self, *a, **k):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def post(self, url, auth=None, data=None):
+            sent.update(url=url, auth=auth, data=data)
+            return FakeResp()
+
+    monkeypatch.setattr(telephony.httpx, "AsyncClient", FakeClient)
+    r = client.post("/api/telephony/call-me", json={"to": "+91 98765 43210"})
+    assert r.status_code == 200 and r.json() == {"calling": "+919876543210", "call_sid": "CA123"}
+    assert sent["url"].endswith("/Accounts/ACtest/Calls.json") and sent["auth"] == ("ACtest", "tok")
+    assert sent["data"]["From"] == "+15550001111" and sent["data"]["To"] == "+919876543210"
+    assert "Method" not in sent["data"] and "Twiml" not in sent["data"]  # trial accounts reject these
+    assert sent["data"]["Url"] == "https://demo.example.dev/api/telephony/twilio/voice"
+    assert client.get("/api/telephony/status").json()["call_me_ready"] is True
+
+
+def test_call_me_is_refused_without_twilio_credentials(client, monkeypatch):
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "twilio_account_sid", None)
+    r = client.post("/api/telephony/call-me", json={"to": "+919876543210"})
+    assert r.status_code == 400 and "TWILIO_ACCOUNT_SID" in r.json()["detail"]
+
+
+def test_outbound_call_identifies_the_person_who_was_dialled(client):
+    """For a "Call me" call Twilio's From is our number and To is the person; the stream must carry To."""
+    r = client.post("/api/telephony/twilio/voice", data={"Direction": "outbound-api", "From": "+15550001111", "To": "+919876543210"})
+    assert 'name="from" value="+919876543210"' in r.text
+    r = client.post("/api/telephony/twilio/voice", data={"Direction": "inbound", "From": "+919876500001", "To": "+15550001111"})
+    assert 'name="from" value="+919876500001"' in r.text

@@ -12,7 +12,7 @@ Understand · Remember · Reason · Act · Verify · Learn — with humans embed
 ![LLM](https://img.shields.io/badge/LLM-Qwen3.5--4B%20%2B%20Qwen3.8--27B-6f42c1?style=flat-square)
 ![Voice](https://img.shields.io/badge/Voice-Gnani%20STT%2FTTS-f97316?style=flat-square)
 ![Memory](https://img.shields.io/badge/Memory-Vector%20%2B%20Knowledge%20Graph-0ea5e9?style=flat-square)
-![Tests](https://img.shields.io/badge/tests-24%20passing-22c55e?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-35%20passing-22c55e?style=flat-square)
 
 </div>
 
@@ -24,6 +24,7 @@ Understand · Remember · Reason · Act · Verify · Learn — with humans embed
 2. [Architecture](#architecture)
 3. [How a call works](#how-a-call-works)
 4. [Quick start](#quick-start)
+   - [Demo runbook (browser demo, 6-minute script, fallbacks)](docs/demo-runbook.md) · [Test data and end-to-end testing](docs/test-data.md): who can call, what is in the brain, what to say, your own data
 5. [Call it from a phone](#call-it-from-a-phone)
 6. [Configuration](#configuration)
 7. [Project structure](#project-structure)
@@ -158,7 +159,9 @@ flowchart TB
     D -->|"< 0.28"| N["No precedent"]
     G -->|"yes"| K
     G -->|"no"| N
-    N --> F["A FIRST TIME BUG HAS BEEN REPORTED<br/>manager enters a suggestion"]
+    N --> Y{"Something actually broken?<br/>error, crash, unknown fault"}
+    Y -->|"no: an order, payment or login question"| W["The desk works it with tools:<br/>look up the order, payment or account"]
+    Y -->|"yes"| F["A FIRST TIME BUG HAS BEEN REPORTED<br/>manager enters a suggestion"]
     F --> R[["Solvable Rulebook<br/>+ bug memory"]]
     R --> C
     R --> B
@@ -295,6 +298,8 @@ cd ..
 
 `.\stop.ps1` stops the API, the UI and the model servers and frees the GPU and RAM.
 
+**Test it from your phone:** `.\start.ps1 -Tunnel` prints a public HTTPS address; open it on the phone and tap *Call Riya* (details, and the real-phone-number route, in [`docs/test-data.md`](docs/test-data.md)).
+
 **Try it in 60 seconds:** open the team console, choose **Run demo → Duplicate payment**, and watch a scripted caller go through the real pipeline (mock enterprise APIs), including the approval gate. Choose **First-time bug** and untick the scripted operator to answer it yourself.
 
 **Bring your own data:** *Knowledge → drop your SOPs*. Each section is routed to the right department agent and indexed into the memory. *Memory* shows the knowledge graph the AI builds.
@@ -303,7 +308,7 @@ cd ..
 
 ## Call it from a phone
 
-Yes — a real phone can call the agent. The bridge speaks the **Twilio Media Streams** protocol (8 kHz G.711 mu-law, 20 ms frames); **Gnani** provides the speech: streaming STT with voice-activity detection in, 8 kHz mu-law TTS out.
+The phone bridge is built and simulator-tested, but has **not** worked through a real Twilio *trial* account (the trial ends the call after its announcement, before opening the audio stream); it needs a paid Twilio number. For live demos use the browser (**Call Riya**, also on a phone via the HTTPS tunnel). The bridge speaks the **Twilio Media Streams** protocol (8 kHz G.711 mu-law, 20 ms frames); **Gnani** provides the speech: streaming STT with voice-activity detection in, 8 kHz mu-law TTS out.
 
 ```mermaid
 flowchart LR
@@ -340,7 +345,8 @@ Everything is optional except the models. Settings live in `backend/.env` (never
 | `CLOUD_LLM_AUTH_HEADER` | `Authorization` | e.g. `api-subscription-key` for Sarvam |
 | `LLM_PREFER` | `local` | `cloud` = cloud first, local fallback |
 | `ENGINE_ENABLED` | `true` | `false` = run without local models (deterministic replies) |
-| `PUBLIC_BASE_URL` | – | Public URL of the API for the phone webhook |
+| `PUBLIC_BASE_URL` | – | Public URL for the phone webhook (`start.ps1 -Tunnel` sets it) |
+| `PHONE_ALIASES` | – | Map your own number to a demo customer, e.g. `+91XXXXXXXXXX:CUS-20481` |
 | `REFUND_AUTO_LIMIT` | `1000` | Refunds above this (INR) need a human Approve |
 
 Engine and model layout: [`engine/README.md`](engine/README.md).
@@ -369,7 +375,7 @@ resolvyn/
 │   │   └── human_intelligence/  guide · approve · correct · override · teach
 │   ├── data/sops/           seed SOPs (ingested exactly like an upload)
 │   ├── scripts/             engine smoke test, e2e caller, phone simulator, voice audition
-│   └── tests/               24 tests: units + real WebSocket and telephony flows
+│   └── tests/               35 tests: units + real WebSocket and telephony flows
 ├── frontend/                Next.js: customer side (/) and team console (/ops/*)
 ├── docs/                    architecture, context, engineering rules, source diagrams
 ├── start.ps1 · stop.ps1
@@ -381,7 +387,7 @@ resolvyn/
 
 ```powershell
 cd backend
-.venv\Scripts\python -m pytest -q                       # 24 tests, no GPU or network needed
+.venv\Scripts\python -m pytest -q                       # 28 tests, no GPU or network needed
 
 # Play a caller over the real WebSocket against the running system
 .venv\Scripts\python scripts\e2e_call.py --customer CUS-20481 --approve `
@@ -437,6 +443,7 @@ Laptop with RTX A2000 (4 GB), i7-11850H, 16 GB RAM.
 
 | | |
 |---|---|
+| [`docs/demo-runbook.md`](docs/demo-runbook.md) | Browser-based demo script, fallbacks, optional paid-Twilio phone number |
 | [`docs/context.md`](docs/context.md) | What Resolvyn is, glossary, project stage |
 | [`docs/architecture.md`](docs/architecture.md) | System design from the source diagrams, plus §4 *As built* |
 | [`docs/claude.md`](docs/claude.md) | Engineering rules and vocabulary for working in this repo |

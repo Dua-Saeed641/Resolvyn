@@ -16,7 +16,15 @@ HINGLISH = {
     "mera", "meri", "mere", "hai", "hain", "nahi", "nahin", "kya", "aap", "mujhe", "kar", "karo", "kijiye",
     "haan", "ji", "accha", "theek", "paisa", "paise", "wapas", "kab", "kyun", "abhi", "bhai", "yaar", "hoon",
     "chahiye", "bataiye", "batao", "samajh", "order", "ho", "gaya", "gayi", "raha", "rahi", "se", "ko", "ka", "ki",
+    "aur", "mein", "main", "mai", "naam", "apna", "apni", "apne", "tha", "thi", "the", "kiya", "diya", "liya", "wala",
+    "wali", "kuch", "kaise", "kahan", "kaha", "kyu", "kyon", "parson", "kal", "aaj", "baare", "baat", "puchhna",
+    "puchhana", "pucchna", "puchna", "ismein", "isme", "likha", "hua", "hui", "toh", "bhi", "sirf", "bilkul", "zara",
+    "dekhiye", "dekho", "dekh", "bolo", "boliye", "suniye", "suno", "matlab", "abhi", "tak", "jo", "woh", "wo",
+    "jaanna", "janna", "jaanana", "chahta", "chahti", "chahte", "yeh", "ye", "koi", "kuchh", "mila", "mili", "nahin", "pahunch", "aaya", "aayi", "aaye", "bheja", "bhejo",
 }
+# words that end a spoken name ("mera naam mukesh hai aur ..."): the name is everything before the first of these
+_NAME_END = {"hai", "hain", "hoon", "hu", "aur", "and", "se", "ka", "ki", "ko", "mein", "main", "mai", "bol", "bolta",
+             "bol", "raha", "rahi", "tha", "thi", "here", "calling", "speaking", "aur", "but", "so", "ji"}
 _DEVANAGARI = re.compile(r"[ऀ-ॿ]")
 _ORDER = re.compile(r"\bord(?:er)?[\s\-:#]*(?:id|number|no)?[\s\-:#]*(?:is\s+)?(?:ord)?[\s\-:#]*((?:\d[\s\-]*){4,6})", re.I)
 _ORDER_PLAIN = re.compile(r"\bORD-?(\d{4,6})\b", re.I)
@@ -50,9 +58,22 @@ def detect_language(text: str) -> str:
     if len(_DEVANAGARI.findall(text)) >= 3:
         return "hi"
     words = re.findall(r"[a-z]+", text.lower())
-    if len(words) >= 3 and sum(w in HINGLISH for w in words) >= 3:
+    hindi = sum(w in HINGLISH and w not in _ALSO_ENGLISH for w in words)
+    english = sum(w in _ENGLISH_MARKERS for w in words)
+    if len(words) >= 3 and hindi >= 3 and hindi > english:
+        return "hi"
+    if len(words) <= 4 and hindi >= 2 and english == 0:  # "kab aayega?", "haan ji theek hai"
         return "hi"
     return "en"
+
+
+# Words that are also everyday English: they never count as evidence of Hindi.
+_ALSO_ENGLISH = {"the", "main", "order", "to", "hi", "ho", "se", "ki", "ka", "ko", "me", "kar", "bhi", "ye", "wo", "jo", "tak"}
+_ENGLISH_MARKERS = {
+    "i", "the", "a", "an", "is", "was", "were", "am", "are", "my", "me", "you", "your", "it", "this", "that", "and", "for",
+    "with", "have", "has", "had", "want", "need", "please", "can", "could", "would", "will", "what", "where", "when",
+    "how", "of", "on", "in", "at", "same", "one", "two", "twice", "charged", "refund", "payments", "refunded",
+}
 
 
 def _digits(s: str) -> str:
@@ -62,7 +83,7 @@ def _digits(s: str) -> str:
 _SPELLED_ORD = re.compile(r"\bo[\s.\-]+r[\s.\-]+d\b", re.I)
 
 
-def extract_entities(text: str) -> dict:
+def extract_entities(text: str, expect_order: bool = False) -> dict:
     ent: dict = {}
     text = _SPELLED_ORD.sub("ORD", text)  # speech-to-text sometimes spells it: "O R D 8 3 9 2 1"
     m = _ORDER_PLAIN.search(text) or _ORDER.search(text)
@@ -90,9 +111,20 @@ def extract_entities(text: str) -> dict:
         ent["phone_last4"] = _digits(m.group(1))[:4]
     m = _NAME.search(text)
     if m:
-        words = [w for w in m.group(1).split() if w.lower() not in _NAME_STOP]
+        words = []
+        for w in m.group(1).split():
+            if w.lower() in _NAME_STOP or w.lower() in _NAME_END:
+                break
+            words.append(w)
         if words:
             ent["name"] = " ".join(w.capitalize() for w in words[:2])
+    if expect_order and "order_id" not in ent:
+        # they were just asked for the order ID and said only the digits: "3508", "it says 3 5 0 8", "ismein 3508 likha hai"
+        m = re.search(r"(?<![\d₹])((?:\d[\s\-]?){3,6})(?!\d)", text)
+        if m and not _AMOUNT.search(text):
+            d = _digits(m.group(1))
+            if 3 <= len(d) <= 6:
+                ent["order_id"] = f"ORD-{d}"
     m = _AMOUNT.search(text)
     if m:
         ent["amount"] = int(_digits(m.group(1)) or 0)
@@ -105,11 +137,11 @@ def clean(text: str) -> str:
     return t[:1].upper() + t[1:] if t else t
 
 
-def enrich(raw_text: str, channel: str = "Call") -> EnrichedMessage:
+def enrich(raw_text: str, channel: str = "Call", expect_order: bool = False) -> EnrichedMessage:
     text = clean(raw_text)
     return {
         "text": text,
         "language": detect_language(text),
         "channel": channel,
-        "entities": extract_entities(raw_text),
+        "entities": extract_entities(raw_text, expect_order),
     }

@@ -18,7 +18,9 @@ import json
 import time
 from xml.sax.saxutils import quoteattr
 
-from fastapi import APIRouter, Request, Response, WebSocket, WebSocketDisconnect
+import httpx
+from fastapi import APIRouter, HTTPException, Request, Response, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from app.api.ws import is_echo
@@ -46,7 +48,10 @@ async def twilio_voice(request: Request):
     form = await request.form()
     base = get_settings().public_base_url or f"{request.url.scheme}://{request.headers.get('host', 'localhost:8000')}"
     ws_url = base.replace("https://", "wss://").replace("http://", "ws://").rstrip("/") + "/ws/telephony/twilio"
-    caller = str(form.get("From", ""))
+    # Inbound: the person is `From`. Outbound ("Call me"): Twilio dialled `To`, that person is the caller.
+    outbound = str(form.get("Direction", "")).startswith("outbound")
+    caller = str(form.get("To" if outbound else "From", ""))
+    print(f"[phone] webhook hit: direction={form.get('Direction')} caller={caller}", flush=True)
     xml = (
         '<?xml version="1.0" encoding="UTF-8"?><Response><Connect>'
         f"<Stream url={quoteattr(ws_url)}><Parameter name=\"from\" value={quoteattr(caller)}/></Stream>"
@@ -55,10 +60,50 @@ async def twilio_voice(request: Request):
     return Response(xml, media_type="text/xml")
 
 
+class CallMeIn(BaseModel):
+    to: str
+
+
+@router.post("/api/telephony/call-me")
+async def call_me(body: CallMeIn, request: Request):
+    """Twilio dials *your* phone and connects the call to the agent. Uses trial credit instead of your carrier's
+    international charges; on a trial account `to` must be a verified number."""
+    s = get_settings()
+    if not (s.twilio_account_sid and s.twilio_auth_token):
+        raise HTTPException(400, "Set TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN in backend/.env")
+    if not s.public_base_url:
+        raise HTTPException(400, "Set PUBLIC_BASE_URL (run .\\start.ps1 -Tunnel) so Twilio can reach this server")
+    to = "+" + "".join(c for c in body.to if c.isdigit())
+    if len(to) < 8:
+        raise HTTPException(400, "Enter the phone number with country code, e.g. +919876543210")
+    # Trial accounts reject `Method` and inline `Twiml` ("limited parameter access") but accept a plain `Url`
+    # (Twilio POSTs to it by default), and they assign their own trial number per verified destination, so `From`
+    # is only sent when configured.
+    data = {"To": to, "Url": s.public_base_url.rstrip("/") + "/api/telephony/twilio/voice"}
+    if s.twilio_phone_number:
+        data["From"] = s.twilio_phone_number
+    async with httpx.AsyncClient(timeout=20) as client:
+        r = await client.post(
+            f"https://api.twilio.com/2010-04-01/Accounts/{s.twilio_account_sid}/Calls.json",
+            auth=(s.twilio_account_sid, s.twilio_auth_token),
+            data=data,
+        )
+    if r.status_code >= 400:
+        try:
+            msg = r.json().get("message", r.text)
+        except Exception:  # noqa: BLE001
+            msg = r.text
+        raise HTTPException(400, f"Twilio refused the call: {msg[:240]}")
+    return {"calling": to, "call_sid": r.json().get("sid")}
+
+
 @router.get("/api/telephony/status")
 def telephony_status(request: Request):
     base = get_settings().public_base_url or f"{request.url.scheme}://{request.headers.get('host', 'localhost:8000')}"
+    s = get_settings()
     return {
+        "call_me_ready": bool(s.twilio_account_sid and s.twilio_auth_token and s.public_base_url),
+        "twilio_number": s.twilio_phone_number,
         "ready": gnani.configured(),
         "provider": "twilio-media-streams",
         "webhook_url": base.rstrip("/") + "/api/telephony/twilio/voice",
@@ -71,6 +116,14 @@ def _customer_for(number: str) -> dict | None:
     digits = "".join(c for c in number if c.isdigit())
     if len(digits) < 4:
         return None
+    for pair in get_settings().phone_aliases.split(","):
+        num, _, cid = pair.partition(":")
+        num_digits = "".join(c for c in num if c.isdigit())
+        if num_digits and cid.strip() and digits.endswith(num_digits[-10:]):
+            with Session(engine) as s:
+                c = s.get(Customer, cid.strip())
+            if c:
+                return c.model_dump()
     with Session(engine) as s:
         rows = s.exec(select(Customer).where(Customer.phone_last4 == digits[-4:])).all()
     return rows[0].model_dump() if len(rows) == 1 else None
@@ -136,6 +189,7 @@ class _Playback:
 @router.websocket("/ws/telephony/twilio")
 async def twilio_ws(ws: WebSocket):
     await ws.accept()
+    print("[phone] media stream connected", flush=True)
     session = None
     listener: gnani.Listener | None = None
     playback: _Playback | None = None
@@ -150,6 +204,7 @@ async def twilio_ws(ws: WebSocket):
                 start = msg["start"]
                 caller = (start.get("customParameters") or {}).get("from", "")
                 customer = _customer_for(caller)
+                print(f"[phone] call started: caller {caller or 'unknown'} -> {customer['name'] if customer else 'guest'}", flush=True)
                 session = sessions.create(channel="Call", customer=customer)
                 playback = _Playback(ws, start["streamSid"])
                 q = hub.subscribe_session(session.session_id)
@@ -157,7 +212,7 @@ async def twilio_ws(ws: WebSocket):
                 async def on_transcript(text: str) -> None:
                     if is_echo(session, text):
                         return
-                    conversation.submit(session, text)
+                    conversation.submit(session, text, voice=True)
 
                 async def on_speech_start() -> None:
                     if playback.speaking:  # the caller talks over the agent
@@ -194,6 +249,7 @@ async def twilio_ws(ws: WebSocket):
                 await listener.feed(mulaw_to_pcm16(base64.b64decode(msg["media"]["payload"])))
 
             elif event == "stop":
+                print("[phone] call ended by the caller/provider", flush=True)
                 break
     except WebSocketDisconnect:
         pass

@@ -24,6 +24,7 @@ class LLM:
         self.cloud = CloudBackend()
         self._boot: asyncio.Task | None = None
         self.last_latency_ms: dict[str, int] = {}
+        self.last_served: dict[str, str] = {}  # tier -> human-readable model that answered last
 
     # ── lifecycle ─────────────────────────────────────────────────────────────
     async def start(self) -> None:
@@ -43,6 +44,16 @@ class LLM:
             # Deep = the 27B through epsilon; cloud only if the 27B is not set up.
             return [self.engine, self.cloud]
         return [self.cloud, self.engine] if prefer_cloud else [self.engine, self.cloud]
+
+    @staticmethod
+    def _label(backend, tier: str) -> str:
+        try:
+            st = backend.status()
+        except Exception:  # noqa: BLE001
+            st = {}
+        model = st.get("model") or ((st.get("tiers") or {}).get(tier) or {}).get("model") or backend.name
+        model = str(model).replace(".gguf", "").split("/")[-1]
+        return f"{model} (local GPU)" if backend.name == "epsilon" else f"{model} (cloud)"
 
     def ready(self, tier: str = "fast") -> bool:
         return any(b.available(tier) for b in self._order(tier))
@@ -74,6 +85,7 @@ class LLM:
                     stop=stop,
                 ):
                     if not produced:
+                        self.last_served[tier] = self._label(backend, tier)
                         self.last_latency_ms[f"{backend.name}:{tier}:first_token"] = int(
                             (time.perf_counter() - started) * 1000
                         )

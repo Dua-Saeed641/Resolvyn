@@ -10,6 +10,7 @@ from app.api.routes import (
     activity,
     agents,
     analytics,
+    business,
     customers,
     demo,
     human_intelligence,
@@ -27,6 +28,7 @@ api_router.include_router(agents.router, prefix="/agents", tags=["agents"])
 api_router.include_router(customers.router, prefix="/customers", tags=["customers"])
 api_router.include_router(knowledge.router, prefix="/knowledge", tags=["knowledge"])
 api_router.include_router(activity.router, prefix="/activity", tags=["activity"])
+api_router.include_router(business.router, prefix="/business", tags=["business"])
 api_router.include_router(
     human_intelligence.router, prefix="/human-intelligence", tags=["human-intelligence"]
 )

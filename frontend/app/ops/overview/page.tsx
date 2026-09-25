@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { AppShell } from "@/components/layout/AppShell";
 import { ApprovalCard } from "@/components/ops/ApprovalCard";
+import { BrainTrace } from "@/components/ops/BrainTrace";
 import { FirstTimeBugCard } from "@/components/ops/FirstTimeBugCard";
 import { Timeline } from "@/components/ops/Timeline";
 import { TicketRow, TicketTableHeader } from "@/components/ops/TicketRow";
@@ -41,6 +42,9 @@ export default function OverviewPage() {
     () => Object.values(tickets).sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1)),
     [tickets],
   );
+  // the call the projector should explain: the live one, else the most recent that has turns
+  const focus = list.find((t) => t.call_active) ?? list.find((t) => events.some((e) => e.ticket_id === t.ticket_id && e.event_type === "TURN_TRACE"));
+  const focusEvents = focus ? events.filter((e) => e.ticket_id === focus.ticket_id) : [];
   const live = list.filter((t) => t.status !== "RESOLVED" || Date.now() - new Date(t.updated_at).getTime() < 600000);
 
   const runDemo = async () => {
@@ -87,6 +91,20 @@ export default function OverviewPage() {
           <MetricCard label="Avg resolution" value={fmtDuration(stats?.avg_resolution_seconds)} />
           <MetricCard label="AI confidence" value={stats?.avg_confidence != null ? `${stats.avg_confidence}%` : "—"} hint={`${stats?.first_time_bugs ?? 0} first-time bug(s)`} />
         </section>
+
+        {focus && focusEvents.some((e) => e.event_type === "TURN_TRACE") && (
+          <Card
+            title={`Live AI brain · ${focus.ticket_id}${focus.customer_name ? ` · ${focus.customer_name}` : ""}`}
+            subtitle="What the AI heard, how it judged it, what it recalled, what it decided, what it verified, and what it refused to say"
+            right={
+              <Link href={`/ops/tickets/${focus.ticket_id}`} className="text-xs text-text-muted underline underline-offset-2 hover:text-text-primary">
+                {focus.call_active ? "● Live · open ticket" : "Open ticket"}
+              </Link>
+            }
+          >
+            <BrainTrace events={focusEvents} />
+          </Card>
+        )}
 
         <Card
           title="Live tickets"

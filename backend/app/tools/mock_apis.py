@@ -10,9 +10,9 @@ same RFD-* id everywhere it is shown.
 from sqlmodel import Session, select
 
 from app.database import engine
-from app.models import Customer, Refund
+from app.models import AccountState, Customer, Order, Payment, Refund, Shipment
+from app.services import business_data
 from app.utils import iso
-from data.seed_data import ACCOUNTS, ORDERS, PAYMENTS, SHIPMENTS
 
 REFUND_ID_BASE = 28192
 DUPLICATE_WINDOW_SECONDS = 600
@@ -46,18 +46,15 @@ def get_customer(customer_id: str) -> dict | None:
         return c.model_dump() if c else None
 
 
-def find_customer(name: str | None = None, email: str | None = None) -> dict | None:
+def find_customer(name: str | None = None, email: str | None = None, phone_last4: str | None = None) -> dict | None:
+    """Find one customer by email, phone last four digits or name. Ambiguous (several matches) is treated as not found."""
     _maybe_fail("find_customer")
-    with Session(engine) as s:
-        rows = s.exec(select(Customer)).all()
-    for c in rows:
-        if email and c.email and c.email.lower() == email.lower():
-            return c.model_dump()
-    if name:
-        n = name.strip().lower()
-        for c in rows:
-            if c.name.lower() == n or c.name.lower().split()[0] == n:
-                return c.model_dump()
+    for kw in ({"email": email}, {"phone_last4": phone_last4}, {"name": name}):
+        if not any(kw.values()):
+            continue
+        hits = business_data.customers_matching(**kw)
+        if len(hits) == 1:
+            return hits[0]
     return None
 
 
@@ -73,19 +70,25 @@ def verify_identity(customer_id: str, email: str | None = None, phone_last4: str
 
 def get_account_status(customer_id: str) -> dict:
     _maybe_fail("get_account_status")
-    acc = ACCOUNTS.get(customer_id)
-    if not acc:
-        return {"customer_id": customer_id, "status": "UNKNOWN"}
-    return {"customer_id": customer_id, **acc}
+    with Session(engine) as s:
+        acc = s.get(AccountState, customer_id)
+        if not acc:
+            return {"customer_id": customer_id, "status": "UNKNOWN"}
+        d = acc.model_dump()
+    if not d.get("locked_reason"):
+        d.pop("locked_reason", None)
+    return d
 
 
 def unlock_account(customer_id: str) -> dict:
     _maybe_fail("unlock_account")
-    acc = ACCOUNTS.get(customer_id)
-    if not acc:
-        return {"ok": False, "reason": "account not found"}
-    acc.update({"status": "ACTIVE", "failed_logins": 0})
-    acc.pop("locked_reason", None)
+    with Session(engine) as s:
+        acc = s.get(AccountState, customer_id)
+        if not acc:
+            return {"ok": False, "reason": "account not found"}
+        acc.status, acc.failed_logins, acc.locked_reason = "ACTIVE", 0, None
+        s.add(acc)
+        s.commit()
     return {"ok": True, "status": "ACTIVE"}
 
 
@@ -103,25 +106,46 @@ def send_reset_link(customer_id: str) -> dict:
 
 
 def get_order(order_id: str) -> dict | None:
+    """The order with exactly this ID (a unique partial ID such as "83921" also resolves)."""
     _maybe_fail("get_order")
-    o = ORDERS.get(order_id.upper())
-    return dict(o) if o else None
+    r = business_data.lookup_order(order_id)
+    return r["order"] if r["found"] else None
+
+
+def lookup_order(reference: str) -> dict:
+    """Forgiving search from what the caller said: exact, partial or ambiguous, with candidates."""
+    _maybe_fail("lookup_order")
+    return business_data.lookup_order(reference)
+
+
+def orders_for_customer(customer_id: str) -> list[dict]:
+    _maybe_fail("orders_for_customer")
+    return business_data.orders_for_customer(customer_id)
 
 
 def get_shipment(shipment_id: str) -> dict | None:
     _maybe_fail("get_shipment")
-    sh = SHIPMENTS.get(shipment_id)
-    return dict(sh) if sh else None
+    with Session(engine) as s:
+        sh = s.get(Shipment, shipment_id)
+        if not sh:
+            return None
+        d = sh.model_dump()
+    if not d.get("delay_reason"):
+        d.pop("delay_reason", None)
+    return d
 
 
 def cancel_order(order_id: str) -> dict:
     _maybe_fail("cancel_order")
-    o = ORDERS.get(order_id.upper())
-    if not o:
-        return {"ok": False, "reason": "order not found"}
-    if o["status"] in ("Shipped", "Delivered"):
-        return {"ok": False, "reason": f"order is already {o['status'].lower()}"}
-    o["status"] = "Cancelled"
+    with Session(engine) as s:
+        o = s.get(Order, order_id.upper())
+        if not o:
+            return {"ok": False, "reason": "order not found"}
+        if o.status in ("Shipped", "Delivered"):
+            return {"ok": False, "reason": f"order is already {o.status.lower()}"}
+        o.status = "Cancelled"
+        s.add(o)
+        s.commit()
     return {"ok": True, "status": "Cancelled"}
 
 
@@ -130,7 +154,9 @@ def cancel_order(order_id: str) -> dict:
 
 def get_payment_transactions(order_id: str) -> list[dict]:
     _maybe_fail("get_payment_transactions")
-    return [dict(p) for p in PAYMENTS.get(order_id.upper(), [])]
+    with Session(engine) as s:
+        rows = s.exec(select(Payment).where(Payment.order_id == order_id.upper())).all()
+    return [{k: v for k, v in p.model_dump().items() if k != "order_id"} for p in sorted(rows, key=lambda p: p.timestamp)]
 
 
 def _refunded_transactions(order_id: str) -> set[str]:
@@ -236,7 +262,5 @@ def reset_state() -> None:
         for r in s.exec(select(Refund)).all():
             s.delete(r)
         s.commit()
-    ACCOUNTS["CUS-20517"].update({"status": "LOCKED", "failed_logins": 5,
-                                  "locked_reason": "Too many failed logins"})
-    ORDERS["ORD-84155"]["status"] = "Processing"
+    business_data.reset_demo()
     _FAIL_ONCE.clear()

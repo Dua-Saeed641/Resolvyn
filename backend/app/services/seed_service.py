@@ -13,6 +13,7 @@ from app.database import engine
 from app.memory.ingest import ingest_file
 from app.memory.memory_engine import memory
 from app.models import Agent, Customer, KnowledgeDocument, Message, Ticket
+from app.services import business_data
 from app.utils import utcnow
 from data.seed_data import AGENTS, CUSTOMERS, HISTORY
 
@@ -32,12 +33,16 @@ def seed_all() -> dict:
                 created["agents"] += 1
         s.commit()
 
-        have_docs = s.exec(select(KnowledgeDocument)).first() is not None
+        known_sources = {d.source_name for d in s.exec(select(KnowledgeDocument)).all()}
 
-    if not have_docs and SOP_DIR.exists():
+    if SOP_DIR.exists():  # per file, so documents you ingested first never stop the built-in SOPs from loading
         for f in sorted(SOP_DIR.glob("*.md")):
+            if f.name in known_sources:
+                continue
             ingest_file(f.name, f.read_bytes())
             created["documents"] += 1
+
+    created.update({f"business_{k}": v for k, v in business_data.seed().items()})
 
     now = utcnow()
     for i, h in enumerate(HISTORY):

@@ -32,6 +32,7 @@ from app.voice.audio import mulaw_to_pcm16  # noqa: E402
 
 API = "http://127.0.0.1:8000"
 WS = "ws://127.0.0.1:8000/ws/telephony/twilio"
+HEADERS = {"ngrok-skip-browser-warning": "1"}
 SILENCE = b"\xff" * 160
 
 
@@ -60,10 +61,12 @@ async def main() -> None:
     ap.add_argument("lines", nargs="+")
     ap.add_argument("--from", dest="caller", default="+91 98765 74821")
     ap.add_argument("--approve", action="store_true")
+    ap.add_argument("--base", default="", help="public URL of the app (e.g. the ngrok URL): the media stream goes through it, like Twilio")
     ap.add_argument("--voice", default="Pranav", help="voice used for the CALLER audio")
     args = ap.parse_args()
 
-    async with websockets.connect(WS, max_size=None) as ws, httpx.AsyncClient(timeout=30) as http:
+    ws_url = args.base.replace("https://", "wss://").replace("http://", "ws://").rstrip("/") + "/ws/telephony/twilio" if args.base else WS
+    async with websockets.connect(ws_url, max_size=None, additional_headers=HEADERS) as ws, httpx.AsyncClient(timeout=30) as http:
         out_frames: list[bytes] = []
         last_media = [0.0]
         first_media_at: list[float] = []

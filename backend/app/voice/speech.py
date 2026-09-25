@@ -13,7 +13,7 @@ import re
 FILLER_BANK: dict[str, dict[str, list[str]]] = {
     "en": {
         "greeting": ["Hi there!", "Hello!", "Hey, hi!"],
-        "ack": ["Mm-hmm.", "Okay, right.", "Yeah, sure.", "Hmm, okay.", "Okay okay.", "Right, right.", "Acha, okay."],
+        "ack": ["Mm-hmm.", "Okay, right.", "Yeah, sure.", "Hmm, okay.", "Okay okay.", "Right, right."],
         "empathy": [
             "Oh no, I'm sorry about that.",
             "Ugh, that's annoying. Sorry about that.",
@@ -164,8 +164,23 @@ _STIFF = [
 ]
 
 
+_ISO_DATE = re.compile(r"\b(20\d\d)-(\d\d)-(\d\d)\b")
+_MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+
+
+def speak_dates(text: str) -> str:
+    """2026-09-27 -> "27 September" (the current year is never read out)."""
+    def one(m: re.Match) -> str:
+        month = int(m.group(2))
+        if not 1 <= month <= 12:
+            return m.group(0)
+        return f"{int(m.group(3))} {_MONTH_NAMES[month - 1]}"
+    return _ISO_DATE.sub(one, text)
+
+
 def humanize(sentence: str) -> str:
     """Replace stock call-centre phrasing with plain spoken English (Latin script only)."""
+    sentence = speak_dates(sentence)
     if re.search(r"[\u0900-\u097f]", sentence):
         return sentence.strip()
     t = sentence

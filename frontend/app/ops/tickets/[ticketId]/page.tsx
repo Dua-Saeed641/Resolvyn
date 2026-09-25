@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useState } from "react";
 
 import { AppShell } from "@/components/layout/AppShell";
+import { BrainTrace } from "@/components/ops/BrainTrace";
 import { KnowledgeSources, ToolCalls, Understanding } from "@/components/ops/AiOperations";
 import { Conversation } from "@/components/ops/Conversation";
 import { FirstTimeBugCard } from "@/components/ops/FirstTimeBugCard";
@@ -104,6 +105,10 @@ export default function TicketDetailPage() {
                   {showDoc && <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap rounded border border-border bg-bg-secondary p-3 text-xs leading-relaxed text-text-body">{t.context_doc}</pre>}
                 </div>
               )}
+            </Card>
+
+            <Card title="Live AI brain" subtitle="Every turn: heard → Jev → memory → decision → tools → truth guard → spoke" right={t.call_active ? <Pill tone="info">● Live</Pill> : undefined}>
+              <BrainTrace events={t.events} />
             </Card>
 
             <Card title="Conversation" subtitle={`${t.channel} · ${t.customer_name ?? "Unidentified caller"}`}>

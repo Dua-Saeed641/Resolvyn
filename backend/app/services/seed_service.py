@@ -61,6 +61,7 @@ def seed_all() -> dict:
     created.update({f"business_{k}": v for k, v in business_data.seed().items()})
 
     now = utcnow()
+    history_count = len(HISTORY)
     for i, h in enumerate(HISTORY):
         with Session(engine) as s:
             existing = s.get(Ticket, h["ticket_id"])
@@ -71,7 +72,10 @@ def seed_all() -> dict:
                     s.add(existing)
                     s.commit()
                 continue
-            when = now - timedelta(days=30 - i * 3)
+            # Oldest entry first, newest entry always at least 1 day in the past
+            # regardless of how long HISTORY grows (a fixed "30 - i*3" offset put
+            # anything past the 10th entry in the future, ahead of live tickets).
+            when = now - timedelta(days=history_count - i)
             cust = s.get(Customer, h["customer_id"])
             s.add(Ticket(
                 ticket_id=h["ticket_id"], customer_id=h["customer_id"], customer_name=cust.name if cust else None,

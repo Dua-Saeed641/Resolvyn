@@ -46,17 +46,9 @@ export function Hero() {
         </div>
       </header>
 
-      <div className="relative mx-auto grid max-w-[1240px] items-center gap-6 px-6 pb-16 pt-8 lg:grid-cols-[1.08fr_0.92fr] lg:pb-24 lg:pt-12">
-        <div>
-          <span className="inline-flex items-center gap-2 rounded-full border border-brand/30 bg-brand/10 px-3 py-1 text-xs font-medium text-success">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand opacity-60" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-brand" />
-            </span>
-            Autonomous customer support
-          </span>
-
-          <h1 className="mt-6 font-display text-[44px] font-normal leading-[1.02] tracking-tight text-foreground sm:text-6xl lg:text-[76px]">
+      <div className="relative mx-auto grid max-w-[1240px] items-start gap-6 px-6 pb-16 pt-4 lg:grid-cols-[1.08fr_0.92fr] lg:pb-20 lg:pt-6">
+        <div className="lg:pt-10">
+          <h1 className="font-display text-[44px] font-normal leading-[1.02] tracking-tight text-foreground sm:text-6xl lg:text-[76px]">
             Support that
             <br />
             <span className="relative inline-block">
@@ -93,14 +85,14 @@ export function Hero() {
           </dl>
         </div>
 
-        <div className="relative mx-auto h-[520px] w-full max-w-[500px] sm:h-[620px] lg:h-[680px]">
+        <div className="relative mx-auto h-[520px] w-full max-w-[500px] sm:h-[620px] lg:-mt-14 lg:h-[680px]">
           <Image
             src="/hero-human.png"
             alt="A soft, blurred human silhouette in green light"
             width={736}
             height={1104}
             priority
-            className="absolute inset-x-0 bottom-0 mx-auto h-full w-auto max-w-none object-contain [mask-image:linear-gradient(to_bottom,black_78%,transparent)]"
+            className="absolute inset-x-0 bottom-0 mx-auto h-full w-auto max-w-none object-contain [-webkit-mask-image:linear-gradient(to_bottom,black_78%,transparent)] [mask-image:linear-gradient(to_bottom,black_78%,transparent)] dark:[-webkit-mask-image:linear-gradient(to_bottom,black_38%,transparent_88%)] dark:[mask-image:linear-gradient(to_bottom,black_38%,transparent_88%)]"
           />
 
           <div className="absolute right-0 top-10 animate-float rounded-2xl border bg-card/95 p-3.5 shadow-float sm:right-[-8px]">
@@ -137,6 +129,7 @@ export function Hero() {
           </div>
         </div>
       </div>
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-44 bg-gradient-to-b from-transparent to-background" />
     </section>
   );
 }

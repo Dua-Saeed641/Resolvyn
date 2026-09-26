@@ -1,5 +1,6 @@
 """System status (models, voice) and the text-to-speech endpoint."""
 
+from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException, Response
 
 from app.config import get_settings
@@ -34,3 +35,42 @@ async def speak(text: str, lang: str = "en", fmt: str = "mp3"):
     except Exception as e:  # noqa: BLE001
         raise HTTPException(503, f"tts unavailable: {e}") from e
     return Response(audio, media_type="audio/mpeg", headers={"Cache-Control": "public, max-age=3600"})
+
+
+class GuardIn(BaseModel):
+    enabled: bool
+    prompt_rules: bool | None = None  # the truth rules inside the prompt (benchmark stress condition)
+
+
+@router.post("/truth-guard")
+def truth_guard(body: GuardIn):
+    """Switch the truth guard on or off at runtime. Only for the benchmark, which measures the raw model against the guarded one."""
+    from app.config import get_settings
+
+    get_settings().truth_guard = body.enabled
+    if body.prompt_rules is not None:
+        get_settings().truth_prompt = body.prompt_rules
+    return {"truth_guard": body.enabled, "truth_prompt": get_settings().truth_prompt}
+
+
+@router.get("/benchmarks")
+def benchmarks():
+    """The measured results (backend/benchmarks) merged, later runs replacing the stages they re-measured. Read-only."""
+    import json
+    from pathlib import Path
+
+    folder = Path(__file__).resolve().parents[3] / "benchmarks"
+    merged: dict = {}
+    for name in ("results.json", "results_part2.json", "results_part3.json", "results_truth.json", "tests.json"):
+        f = folder / name
+        if f.exists():
+            data = json.loads(f.read_text(encoding="utf-8"))
+            if name == "tests.json":
+                merged["tests"] = data
+            elif name == "results_truth.json":
+                merged["truth"] = data["truth"]  # only the adversarial section; its timings are not the resolution run's
+            else:
+                merged.update(data)
+    if not merged:
+        raise HTTPException(404, "No benchmark results yet. Run: python -m benchmarks.run")
+    return merged

@@ -40,7 +40,7 @@ class Retrieval:
         for h in self.common + self.graph + self.bugs:
             if h.chunk_id not in merged or h.score > merged[h.chunk_id].score:
                 merged[h.chunk_id] = h
-        return sorted(merged.values(), key=lambda h: h.score, reverse=True)[:k]
+        return sorted(merged.values(), key=lambda h: (h.rank or h.score), reverse=True)[:k]
 
     def sources(self) -> list[dict]:
         return [h.public() for h in self.top_hits(5)]
@@ -73,7 +73,7 @@ class MemoryEngine:
                 h.score = min(1.0, h.score * RULE_BOOST)
             if exclude_ticket and h.ref_ticket_id == exclude_ticket:
                 h.score *= 0.3
-        hits.sort(key=lambda h: h.score, reverse=True)
+        hits.sort(key=lambda h: (h.rank or h.score) if h.score >= 0.3 else h.score, reverse=True)
         r.common = hits[:4]
 
         # Graph hop: past solved tickets sharing concepts with the query.

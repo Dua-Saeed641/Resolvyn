@@ -1,0 +1,116 @@
+{
+  "when": "2026-09-26 12:17",
+  "hardware": {
+    "cpu": "11th Gen Intel(R) Core(TM) i7-11850H @ 2.50GHz",
+    "ram_gb": "16",
+    "os": "Windows-10-10.0.26200-SP0",
+    "gpu": {
+      "name": "NVIDIA RTX A2000 Laptop GPU",
+      "vram_used_mb": 0,
+      "vram_total_mb": 4096
+    }
+  },
+  "model": "Qwen3.5-4B Q4_K_M (fast tier), local",
+  "reps": 5,
+  "server": {
+    "ready_seconds": 3.9
+  },
+  "learning": {
+    "n": 3,
+    "flagged": 0.6666666666666666,
+    "relayed_live": 0.6666666666666666,
+    "second_caller_from_memory": 0.6666666666666666,
+    "rows": [
+      {
+        "issue": "my studio headphones show a flashing purple light ",
+        "flagged_for_manager": true,
+        "suggestion_relayed_live": true,
+        "relay_first_word_ms": 179,
+        "second_caller_answered_from_memory": true,
+        "second_caller_first_word_ms": 163
+      },
+      {
+        "issue": "my smart kettle beeps five times and shows error E",
+        "flagged_for_manager": true,
+        "suggestion_relayed_live": true,
+        "relay_first_word_ms": 184,
+        "second_caller_answered_from_memory": true,
+        "second_caller_first_word_ms": 4008
+      },
+      {
+        "issue": "the light on my earbuds case stays amber after cha",
+        "flagged_for_manager": false,
+        "suggestion_relayed_live": false,
+        "relay_first_word_ms": 0,
+        "second_caller_answered_from_memory": false,
+        "second_caller_first_word_ms": 5154
+      }
+    ]
+  },
+  "jev_model": {
+    "n": 24,
+    "rules_only": 0.75,
+    "with_model_help": 0.9583333333333334,
+    "asked_model": 0.6666666666666666,
+    "model_assisted_ms": {
+      "n": 16,
+      "p50": 2030.9,
+      "p95": 3497.9,
+      "max": 3505.4
+    }
+  },
+  "email": {
+    "cases": [
+      {
+        "customer": "CUS-20517",
+        "produced": true,
+        "email_chars": 1163,
+        "transcript_chars": 1482,
+        "html_bytes": 11351,
+        "message_bytes": 23112,
+        "sections": 3,
+        "specifics_checked": 2,
+        "specifics_grounded": 2,
+        "ids": [
+          "ORD-84155"
+        ],
+        "amounts": [
+          "1299"
+        ]
+      },
+      {
+        "customer": "CUS-20481",
+        "produced": true,
+        "email_chars": 1264,
+        "transcript_chars": 721,
+        "html_bytes": 11508,
+        "message_bytes": 23464,
+        "sections": 2,
+        "specifics_checked": 4,
+        "specifics_grounded": 4,
+        "ids": [
+          "ORD-83921",
+          "RFD-28192",
+          "TXN-90113"
+        ],
+        "amounts": [
+          "2499"
+        ]
+      }
+    ],
+    "produced": true,
+    "specifics_checked": 6,
+    "specifics_grounded": 6,
+    "grounding_rate": 1.0,
+    "max_message_bytes": 23464
+  },
+  "gpu_loaded": {
+    "name": "NVIDIA RTX A2000 Laptop GPU",
+    "vram_used_mb": 3285,
+    "vram_total_mb": 4096
+  },
+  "email_tests": {
+    "passed": 36,
+    "failed": 0
+  }
+}

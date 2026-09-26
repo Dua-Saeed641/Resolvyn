@@ -73,6 +73,18 @@ IDENTITY_QUESTION = re.compile(
 NOT_HUMAN = re.compile(
     r"\b(?:don'?t|do not|dont|no need to|not|never|without|nahi|mat)\b(?:\s+\w+){0,4}?\s+"
     r"(?:a |an |the |to |any )?(?:manager|human|person|supervisor|escalat\w*|someone else|senior)", re.I)
+# Asking for a person is a request VERB near a ROLE word ("get me a manager", "transfer me to someone senior"); merely mentioning
+# one ("my manager told me to call", "is the store manager in", "supervisor policy") is not a request.
+_ROLE = r"(?:human(?: being| agent)?|person|manager|supervisor|agent|representative|rep|executive|colleague|someone|somebody|senior|in charge|team member|staff|owner)"
+_ASK_VERB = r"(?:speak|talk|chat|connect|transfer|put|hand|escalat\w*|get|bring|pass|forward|route|redirect|switch|want|need|demand|insist|like|prefer|rather|lodge|complain|call)"
+HUMAN_ASK = re.compile(
+    rf"\b{_ASK_VERB}\b[^.?!]{{0,40}}\b{_ROLE}\b|"
+    r"\b(?:real|actual|live|living)\s+(?:person|human|agent|being)\b|"
+    r"\b(?:someone|somebody)\s+(?:else|senior|higher|in charge|from your team|at your company)\b|"
+    r"\banother\s+(?:person|agent|executive|representative|colleague)\b|"
+    r"\bescalat(?:e|ion)\b|"
+    r"^\W*(?:a |the |your )?(?:manager|supervisor|human|person|agent|representative)\b[\s,!.?]*(?:please|now)?\W*$|"
+    r"\b(?:manager|senior|insaan|insan|human|kisi|supervisor)\s+(?:se\s+)?baat\b|\bbaat\s+karwa\w*\b|\b(?:insaan|insan)\s+se\b", re.I)
 PERSONAL_ORDER = re.compile(r"\b(i ordered|i placed|placed an order|my order|my parcel|my package|maine order|ordered something)\b")
 _QUESTION = re.compile(r"\?|^\s*(what|when|where|why|how|can|could|will|would|do|does|is|are)\b", re.I)
 
@@ -166,7 +178,8 @@ def rules_judge(text: str, prior: Judgment | None = None, *, plan: str | None = 
             j.confidence = max(60, prior.confidence - 4)
 
     j.sentiment = _sentiment(low, prior.sentiment if prior else None)
-    j.wants_human = any(p in low for p in HUMAN_REQUEST) and not IDENTITY_QUESTION.search(low) and not NOT_HUMAN.search(low)
+    j.wants_human = bool(HUMAN_ASK.search(low) or any(p in low for p in HUMAN_REQUEST if p not in ("manager", "supervisor"))) \
+        and not IDENTITY_QUESTION.search(low) and not NOT_HUMAN.search(low)
     j.urgency = "High" if any(w in low for w in URGENCY_HIGH) else ("Medium" if j.sentiment in ("Frustrated", "Angry") else "Low")
     j.yes, j.no, j.done = dialogue_act(text)
 

@@ -68,7 +68,9 @@ def build_messages(
     who = ctx.customer["name"] if ctx.customer else ctx.state.get("name")
     plan_name = ctx.customer.get("plan") if ctx.customer else None
 
-    parts = [PERSONA.format(agent=s.agent_name, business=s.business_name)]
+    persona = PERSONA if s.truth_prompt else PERSONA.split("TRUTH RULES")[0] + (
+        "- If the caller is clearly talking to someone else and not to you, output exactly [SIDE_TALK] and nothing else.")
+    parts = [persona.format(agent=s.agent_name, business=s.business_name)]
     if department_persona:
         parts.append(department_persona)
     if who:

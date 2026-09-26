@@ -1,5 +1,6 @@
 """The email channel: same pipeline as a call, replies as emails, threads, the approval follow-up, escalation."""
 
+import re
 import time
 
 from app.services.email_service import clean_body
@@ -106,7 +107,7 @@ def test_after_a_resolved_call_the_customer_is_emailed_a_summary_with_the_verifi
     ws.__exit__(None, None, None)
     assert mail, "a summary email is sent once the ticket is resolved"
     assert mail["to"] == "lovekesh.anand@example.com" and f"[{tid}]" in mail["subject"]
-    assert "RFD-" in mail["body"] and "2,499" in mail["body"] and "Status: Resolved" in mail["body"]
+    assert "RFD-" in mail["body"] and "2,499" in mail["body"] and re.search(r"STATUS\s+Resolved", mail["body"])
     assert "Hi Lovekesh," in mail["body"] and tid in mail["body"]
     assert len(_summaries(client, tid)) == 1, "one summary per outcome"
 
@@ -115,7 +116,7 @@ def test_an_escalated_call_gets_a_hand_over_summary(client):
     ws, c, tid = _run_call(client, "CUS-20517", ["Can you cancel my order ORD-84155? Actually, I want to speak to a manager"])
     mail = _wait_for(lambda: (_summaries(client, tid) or [None])[0])
     ws.__exit__(None, None, None)
-    assert mail and "passed this to" in mail["body"] and mail["to"] == "dua.saeed@example.com"
+    assert mail and "follow up with you" in " ".join(mail["body"].split()) and mail["to"] == "dua.saeed@example.com"
 
 
 def test_a_guest_without_an_email_gets_no_summary(client):

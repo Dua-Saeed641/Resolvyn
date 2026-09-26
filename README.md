@@ -11,7 +11,7 @@ Talk to it, chat with it, or email it. It checks the order, fixes the problem, p
 ![Next.js](https://img.shields.io/badge/Next.js-14-000000?style=flat-square&logo=nextdotjs&logoColor=white)
 ![shadcn/ui](https://img.shields.io/badge/UI-shadcn%2Fui-18181b?style=flat-square)
 ![Local LLM](https://img.shields.io/badge/LLM-Qwen%20on%20a%204%20GB%20GPU-6f42c1?style=flat-square)
-![Tests](https://img.shields.io/badge/tests-103%20backend%20%2B%2019%20orchestration-22c55e?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-147%20backend%20%2B%2037%20orchestration-22c55e?style=flat-square)
 
 </div>
 
@@ -109,7 +109,8 @@ cd .. ; .\start.ps1                          # first run creates the venv and bu
 
 | | |
 |---|---|
-| Customer side | <http://localhost:3000> |
+| Home, pitch and benchmarks | <http://localhost:3000> |
+| Talk, chat or email Riya | <http://localhost:3000/talk> |
 | Team console | <http://localhost:3000/ops> |
 | API docs | <http://localhost:8000/docs> |
 
@@ -128,17 +129,32 @@ The full script, the orders and what to say: [`docs/demo-runbook.md`](docs/demo-
 
 ### Email
 
-Works immediately with a built-in simulated inbox (Team console → **Emails**). For real email you need a **Gmail address, a Google App Password** (turn on 2-step verification, then Google Account → Security → App passwords), and the customers' real addresses:
+Every call or chat ends with an email to the customer: **a summary of what was discussed and decided, never the conversation**. It lists the topics in the order they came up (account, order, refund, a warranty question), each with the verified facts (order and refund IDs, amounts, timelines), what happens next, and the references. It is built from tool results, approvals and escalations, so it cannot contain anything that was not verified. Customers can also write to the support address: replies are threaded into the same ticket, answered from the same desks and tools, and a reply to a resolved ticket reopens it.
+
+Works immediately with a built-in simulated inbox (Team console → **Emails**, with an HTML preview and a `.eml` download of the exact message). To send from a real Gmail address you need:
+
+1. **Your Gmail address** and 2-step verification turned on.
+2. A **Google App Password** (Google Account → Security → App passwords).
+3. **IMAP enabled** (Gmail → Settings → Forwarding and POP/IMAP) if Riya should read replies.
+4. The customers' real addresses in `CUSTOMER_EMAILS`.
 
 ```
 EMAIL_ADDRESS=you@gmail.com
-EMAIL_PASSWORD=<app password>
+EMAIL_PASSWORD=<16-character app password>
 EMAIL_SMTP_HOST=smtp.gmail.com
 EMAIL_IMAP_HOST=imap.gmail.com
-EMAIL_REDIRECT_TO=you@gmail.com      # while testing: every email lands in your inbox
+CUSTOMER_EMAILS=CUS-20481:first@gmail.com,CUS-20517:second@gmail.com
+EMAIL_REDIRECT_TO=you@gmail.com      # optional, while testing: every email lands in your inbox
 ```
 
-Set each customer's address in **Customers**. Riya then emails summaries and replies, and answers customers who write to the support address.
+```powershell
+cd backend
+.venv\Scripts\python scripts\email_check.py                        # checks the settings and both logins, sends nothing
+.venv\Scripts\python scripts\email_check.py --send-to you@gmail.com # sends one real test email
+.venv\Scripts\python scripts\email_benchmark.py                    # 25 email benchmarks, one line each
+```
+
+**Protocols followed:** MIME `multipart/alternative` (plain text plus HTML, UTF-8, quoted-printable) with an inline logo; RFC 5322 headers (`Date`, `Message-ID`, `Reply-To`); threading with `In-Reply-To` and `References`; RFC 3834 `Auto-Submitted` so robots never answer it, and automated mail (bounces, out-of-office, `Precedence: bulk`, no-reply) is never answered; a per-ticket cap against ping-pong; SMTP over TLS or STARTTLS; IMAP with `BODY.PEEK` so mail Riya does not answer stays unread; and only known customers are answered. SPF, DKIM and DMARC are applied by Gmail when it sends from your account. The layout is 600 px table HTML with a hidden preheader, dark-mode styles, WCAG AA contrast, and stays under Gmail's 102 KB clipping limit.
 
 ### Configuration
 
@@ -166,11 +182,19 @@ Everything is optional except the models. Settings live in `backend/.env` (never
 
 | Measure | Result |
 |---|---|
-| Acknowledgement after the caller stops | ~10 ms (rules and a cached phrase, no model) |
-| Jev judgment | ~13 ms per sentence |
-| Local reply, first spoken sentence | 1.2 to 2.5 s (Qwen3.5-4B at 35 to 39 tokens/s) |
-| Hero flow, resolved end to end | ~40 s including the human approval |
-| Automated tests | 103 backend, 19 orchestration, all passing without a GPU |
+| End-to-end scenarios with the real local model (refund with approval, unlock, cancel, escalation, side talk, tool outage...) | **12 / 12**; the refund never ran before the manager approved |
+| A first-time problem becomes the answer for the next caller | **3 / 3** flagged, relayed live (about 2 s after the manager sends), then answered from memory with no human |
+| "I want a person" on unseen sentences | precision 100%, recall 93% |
+| Routing on unseen sentences | 75% by rules alone (Jev, 0.4 ms), 95.8% when the 4B model is consulted on the unsure 67% |
+| Retrieval of the right document section | 88% first, 100% in the top 3 |
+| Truth gate: 55 adversarial conversations (model tempted to invent dates, prices, warranties, fix times) | **0 untrue statements reached the customer**; the ungated model slipped 1 (a wrong price), and the gate stepped in on 4 unverifiable sentences |
+| Numbers and IDs in the summary email that trace back to verified records | 6 / 6 |
+| Acknowledgement after the caller stops | about 4 ms (rules and a cached phrase, no model) |
+| First real word of the reply / whole turn (median) | 1.8 s / 2.5 s on a 4 GB laptop GPU (39.7 tokens/s) |
+| GPU memory with the model loaded | 3.2 of 4 GB; no cloud model, no per-minute fees |
+| Automated tests | 147 backend (including 25 email benchmarks), 37 orchestration, all passing without a GPU |
+
+Full method, per-scenario tables and limits (small samples, simulated back-end services): [docs/benchmarks.md](docs/benchmarks.md). The truth-gate sample is small (55 gated and 55 ungated conversations), and the 4B model is already largely truthful when the rules are in its prompt, so the gate is a safety net rather than a dramatic reduction.
 
 ---
 
@@ -185,7 +209,7 @@ docs/        Demo runbook, test data, architecture
 ```
 
 ```powershell
-cd backend ; .venv\Scripts\python -m pytest -q     # 103 tests, no GPU or API keys needed
+cd backend ; .venv\Scripts\python -m pytest -q     # 147 tests, no GPU or API keys needed
 ```
 
 ## Honest limits

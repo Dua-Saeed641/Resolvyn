@@ -10,12 +10,14 @@ INTENTS: dict[str, tuple[str, list[str]]] = {
     "Duplicate Payment": ("Billing", [
         "charged twice", "double charged", "charged two times", "duplicate payment", "duplicate charge",
         "deducted twice", "paid twice", "two payments", "two transactions", "billed twice", "charged again",
-        "do baar paise", "paise do baar", "दो बार पैसे", "दो बार पेमेंट", "दो बार कट",
+        "do baar paise", "paise do baar", "billed two times", "billed me two times", "billed 2 times", "दो बार पैसे", "दो बार पेमेंट", "दो बार कट",
     ]),
     "Refund Status": ("Billing", [
         "refund not received", "where is my refund", "refund status", "haven't received my refund",
         "refund hasn't", "still waiting for refund", "refund pending", "refund delayed",
         "refund nahi aaya", "रिफंड नहीं आया", "रिफंड कब",
+        "will the refund", "will my refund", "refund show up", "refund arrive", "refund reach", "refund credited",
+        "refund come", "when do i get my refund", "when will i get", "refund kab", "money show up",
     ]),
     "Refund Request": ("Billing", [
         "want a refund", "need a refund", "want my money back", "money back", "refund", "reimburse",
@@ -35,7 +37,7 @@ INTENTS: dict[str, tuple[str, list[str]]] = {
         "login nahi", "password bhool", "account lock", "लॉगिन", "पासवर्ड", "अकाउंट लॉक",
     ]),
     "Profile Update": ("Account", [
-        "change my email", "update my email", "change phone", "update phone", "change address",
+        "change my email", "update my email", "change phone", "update phone", "phone number", "mobile number", "update my number", "change my number", "change address",
         "update profile", "change my name", "close my account", "delete my account",
     ]),
     "Shipping Delay": ("Order", [
@@ -47,7 +49,7 @@ INTENTS: dict[str, tuple[str, list[str]]] = {
         "order nahi aaya", "order abhi tak nahi", "kab aayega", "ऑर्डर नहीं आया", "डिलीवरी", "कब आएगा",
     ]),
     "Order Issue": ("Order", [
-        "wrong item", "wrong colour", "wrong color", "damaged", "broken when", "missing item", "cancel my order",
+        "wrong item", "wrong colour", "wrong color", "damaged", "broken when", "missing item", "cancel my order", "cancel that", "cancel this", "cancel the order", "cancel one", "cancel it please",
         "cancel order", "cancel it", "return", "replace", "replacement", "exchange", "order",
         "cancel karna", "galat item", "कैंसल", "ऑर्डर",
         "mera order", "apna order", "maine order", "order kiya", "order ke baare", "order ka status",
@@ -58,7 +60,7 @@ INTENTS: dict[str, tuple[str, list[str]]] = {
         "bug", "glitch", "firmware", "bluetooth", "pair", "pairing", "battery", "charging", "won't turn on",
         "wont turn on", "flashing", "blinking", "light", "app", "update", "freezing", "stuck", "code",
         "not connecting", "won't connect", "no sound", "screen",
-        "kaam nahi kar raha", "chal nahi raha", "काम नहीं कर रहा", "चल नहीं रहा",
+        "kaam nahi kar raha", "chal nahi raha", "stopped heating", "not heating", "won't heat", "sound nahi", "awaaz nahi", "no sound", "काम नहीं कर रहा", "चल नहीं रहा",
         "under warranty", "warranty claim", "warranty", "stopped working", "repair",
     ]),
     "General Query": ("Other", [

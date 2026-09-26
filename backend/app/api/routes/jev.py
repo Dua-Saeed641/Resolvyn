@@ -22,6 +22,7 @@ class JudgeIn(BaseModel):
     text: str
     previous: str | None = None  # the caller's previous sentence, to see topic carry-over
     expecting_answer: bool = False
+    refine: bool = False  # let the fast model help when the rules are unsure (what a live call does)
 
 
 @router.post("/judge")
@@ -31,6 +32,10 @@ async def judge(body: JudgeIn):
     who, why = jev.addressee(enriched["text"], expecting_answer=body.expecting_answer)
     prior = jev.rules_judge(body.previous) if body.previous else None
     j = jev.rules_judge(enriched["text"], prior)
+    used_model = False
+    if body.refine and jev.is_unsure(enriched["text"], j):
+        j = await jev.refine_with_model(enriched["text"], j, [])
+        used_model = True
     j.query = jev.write_query(enriched["text"], j)
     jev_ms = (time.perf_counter() - t0) * 1000
     ret = memory.retrieve(j.query, j.department)
@@ -48,5 +53,6 @@ async def judge(body: JudgeIn):
         "memory": [{"title": h.title, "kind": h.kind, "score": round(h.score, 2)} for h in ret.top_hits(3)],
         "route": "SIDE_TALK" if d is None else ("SMALL_TALK" if d.small_talk else d.path),
         "reason": why if d is None else d.reason,
+        "used_model": used_model,
         "ms": round(jev_ms, 2),
     }

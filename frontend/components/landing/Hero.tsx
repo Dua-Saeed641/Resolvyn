@@ -8,8 +8,8 @@ import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { Button } from "@/components/ui/button";
 
 const STATS = [
-  { value: "~10 ms", label: "to the first acknowledgement" },
-  { value: "100%", label: "of actions verified before they are said" },
+  { value: "< 2 s", label: "until Riya starts answering" },
+  { value: "12 of 12", label: "everyday support cases solved" },
   { value: "3", label: "channels: voice, chat, email" },
 ];
 
@@ -35,13 +35,14 @@ export function Hero() {
         </Link>
         <nav className="hidden items-center gap-8 text-sm text-muted-foreground md:flex" aria-label="Sections">
           <a href="#how" className="transition-colors hover:text-foreground">How it works</a>
-          <a href="#talk" className="transition-colors hover:text-foreground">Talk to Riya</a>
+          <a href="#benchmarks" className="transition-colors hover:text-foreground">Benchmarks</a>
+          <Link href="/talk" className="transition-colors hover:text-foreground">Talk to Riya</Link>
           <Link href="/ops" className="transition-colors hover:text-foreground">Team console</Link>
         </nav>
         <div className="flex items-center gap-2">
           <ThemeToggle />
           <Button asChild className="hidden rounded-full sm:inline-flex">
-            <a href="#talk">Start now</a>
+            <Link href="/talk">Start now</Link>
           </Button>
         </div>
       </header>
@@ -64,14 +65,14 @@ export function Hero() {
 
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <Button asChild size="lg" className="h-12 rounded-full px-7 text-[15px]">
-              <a href="#talk">
+              <Link href="/talk">
                 <Phone /> Talk to Riya
-              </a>
+              </Link>
             </Button>
             <Button asChild size="lg" variant="outline" className="h-12 rounded-full px-7 text-[15px]">
-              <a href="#talk">
+              <Link href="/talk">
                 <Mail /> Write an email <ArrowRight />
-              </a>
+              </Link>
             </Button>
           </div>
 

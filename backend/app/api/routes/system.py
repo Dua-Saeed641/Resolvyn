@@ -61,7 +61,7 @@ def benchmarks():
 
     folder = Path(__file__).resolve().parents[3] / "benchmarks"
     merged: dict = {}
-    for name in ("results.json", "results_part2.json", "results_part3.json", "results_truth.json", "tests.json"):
+    for name in ("results.json", "results_part2.json", "results_part3.json", "results_part4.json", "results_truth.json", "tests.json"):
         f = folder / name
         if f.exists():
             data = json.loads(f.read_text(encoding="utf-8"))

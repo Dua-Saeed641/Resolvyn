@@ -34,7 +34,7 @@ export function Hero() {
           <Logo size={34} />
         </Link>
         <nav className="hidden items-center gap-8 text-sm text-muted-foreground md:flex" aria-label="Sections">
-          <a href="#how" className="transition-colors hover:text-foreground">How it works</a>
+          <Link href="/docs" className="transition-colors hover:text-foreground">How it works</Link>
           <a href="#benchmarks" className="transition-colors hover:text-foreground">Benchmarks</a>
           <Link href="/talk" className="transition-colors hover:text-foreground">Talk to Riya</Link>
           <Link href="/ops" className="transition-colors hover:text-foreground">Team console</Link>

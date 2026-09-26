@@ -10,7 +10,7 @@ from pathlib import Path
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 ROOT = Path(__file__).resolve().parent.parent
 R: dict = {}
-for name in ("results.json", "results_part2.json", "results_part3.json", "results_truth.json"):  # a later file replaces the stages it re-measured
+for name in ("results.json", "results_part2.json", "results_part3.json", "results_part4.json", "results_truth.json"):  # a later file replaces the stages it re-measured
     f = ROOT / "benchmarks" / name
     if f.exists():
         part = json.loads(f.read_text(encoding="utf-8"))

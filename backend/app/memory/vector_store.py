@@ -108,6 +108,8 @@ class VectorIndex:
             # cosine keeps long, unfocused chunks from winning by accident.
             score = 0.6 * coverage + 0.4 * min(1.0, cosine * 1.6)
             rank_bonus = 0.45 if (c["kind"] not in ("past_query", "rule", "bug") and self._headings[i] and self._headings[i] <= q_plain) else 0.0  # asked about exactly this section
+            if c["kind"] == "past_query":
+                rank_bonus = -0.3  # a policy answers a policy question before a similar past ticket does (ordering only, as above)
             if department and c["department"] == department:
                 score *= 1.12
             elif department and c["department"] not in (department, "Other"):

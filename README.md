@@ -251,7 +251,8 @@ EMAIL_ADDRESS=you@gmail.com
 EMAIL_PASSWORD=<google app password>
 EMAIL_SMTP_HOST=smtp.gmail.com
 EMAIL_IMAP_HOST=imap.gmail.com
-EMAIL_REDIRECT_TO=you@gmail.com      # while testing: every email lands in your inbox
+CUSTOMER_EMAILS=CUS-20481:first@gmail.com,CUS-20517:second@gmail.com
+EMAIL_REDIRECT_TO=you@gmail.com      # optional, while testing: every email lands in your inbox
 ```
 
 Set each customer's real address with `CUSTOMER_EMAILS` (below), or in the Customers page, without ever committing a real address into the seed data. Riya then emails summaries and replies to incoming messages over real SMTP/IMAP.

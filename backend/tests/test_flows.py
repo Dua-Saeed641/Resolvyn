@@ -225,3 +225,26 @@ def test_ingested_documents_are_used_to_answer_and_shape_routing(client):
     finally:
         c.send_json({"type": "end"})
         ws.__exit__(None, None, None)
+
+
+def test_a_taught_fix_is_never_applied_to_a_different_fault(client):
+    """Found by the benchmark: after P-77 was taught, an unrelated 'amber light, error B-9' got the headphones' fix."""
+    client.post("/api/demo/reset")
+    ws, c, tid = _open(client, "CUS-20481")
+    try:
+        _turn(c, "My studio headphones show a flashing purple light and error code P-77.")
+        bug = next(b for b in client.get("/api/human-intelligence/bugs").json() if b["ticket_id"] == tid)
+        client.post(f"/api/human-intelligence/bugs/{bug['bug_id']}/suggest", json={"suggestion": "Hold the power button for fifteen seconds to force recovery mode."})
+        events = []
+        while not any(e["type"] == "agent_done" for e in events):
+            events.append(c.receive_json())
+    finally:
+        ws.__exit__(None, None, None)
+    ws2, c2, tid2 = _open(client, "CUS-20481")
+    try:
+        reply = _said(_turn(c2, "The light on my earbuds case stays amber after charging and shows error B-9."))
+        t = client.get(f"/api/tickets/{tid2}").json()
+        assert t["is_first_time_bug"], "a code that was never taught is a new problem"
+        assert "fifteen seconds" not in reply.lower() and "power button" not in reply.lower()
+    finally:
+        ws2.__exit__(None, None, None)

@@ -126,6 +126,15 @@ class BillingAgent(BaseAgent):
                     fallback=f"Your refund {r['refund_id']} for {money(r['amount'])} shows as {r['status'].lower()}. It usually reaches you in 3 to 5 working days.",
                     facts=facts, status="ACTIVE", path="ACTION", agent_state="COMPLETED", operation="Refund status shared", resolve=r["status"] == "COMPLETED",
                 )
+            if order["status"] == "Cancelled":
+                amt = money(order["amount"])
+                facts.append(f"Order {order_id} ({order['item']}) was cancelled; its refund of {amt} returns to the original payment method in 3 to 5 working days from the cancellation")
+                return Plan(
+                    goal="The order was cancelled, so its refund is on the way. Say when it should arrive using the facts (3 to 5 working days from the cancellation). Do not mention duplicate charges.",
+                    fallback=f"Your {order['item']} order was cancelled, so its {amt} refund is on its way to your original payment method. It should show up within 3 to 5 working days of the cancellation.",
+                    facts=facts, status="ACTIVE", path="ACTION", agent_state="COMPLETED", operation="Refund timeline shared", use_knowledge=False,
+                    must_say=["3 to 5", "working days"],
+                )
             facts.append("There is no refund on file for this order")
 
         # ── duplicate charge / refund request ────────────────────────────────

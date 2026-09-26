@@ -18,7 +18,7 @@ backend\.venv\Scripts\python backend\scripts\preflight.py --reset
 It should say `0 failure(s)` (a Twilio warning is fine). Then:
 
 - **Laptop / projector:** `http://localhost:3000/ops/overview` (team console)
-- **Customer side, on your laptop:** `http://localhost:3000`
+- **Customer side, on your laptop:** `http://localhost:3000` (pitch and benchmarks), `http://localhost:3000/talk` (call, chat, email)
 - **Customer side, on a phone** (yours or a judge's): the `https://….ngrok-free.dev` address printed by the script. Tap *Visit Site* on ngrok's first-time notice, pick who you are calling as, tap **Call Riya**, allow the microphone. HTTPS is what lets the phone use its microphone.
 
 Do **one** dry run of the hero call so the voice cache is warm. Keep the server running a few minutes after starting: it pre-generates ~100 stock phrases (acknowledgements like "hmm, one sec") with Gnani, so they play instantly.

@@ -7,6 +7,7 @@ small so a dense embedder can replace `_vector()` later without touching callers
 """
 
 import math
+import re
 from collections import Counter
 from dataclasses import dataclass, field
 
@@ -26,6 +27,7 @@ class Hit:
     ref_ticket_id: str | None = None
     via: str = "vector"  # vector | graph
     matched: list[str] = field(default_factory=list)
+    rank: float = 0.0  # ordering only: score plus the heading bonus (never used as a confidence)
 
     def public(self) -> dict:
         return {
@@ -47,6 +49,7 @@ class VectorIndex:
         self._vecs: list[dict[str, float]] = []
         self._norms: list[float] = []
         self._terms: list[set[str]] = []
+        self._headings: list[set[str]] = []  # the words of each section's own heading
         self._idf: dict[str, float] = {}
 
     def __len__(self) -> int:
@@ -64,6 +67,7 @@ class VectorIndex:
         n = max(len(docs), 1)
         self._idf = {t: math.log(1 + (n + 1) / (f + 0.5)) for t, f in df.items()}
         self._vecs, self._norms, self._terms = [], [], []
+        self._headings = [set(tokens(re.split(r"\s+[—-]\s+", c["title"])[-1])) for c in chunks]
         for d in docs:
             tf = Counter(d)
             vec = {t: (1 + math.log(c)) * self._idf[t] for t, c in tf.items()}
@@ -83,6 +87,7 @@ class VectorIndex:
         if not q_tokens or not self._chunks:
             return []
         qtf = Counter(q_tokens)
+        q_plain = set(tokens(query))
         default_idf = max(self._idf.values(), default=1.0)
         qvec = {t: (1 + math.log(c)) * self._idf.get(t, default_idf * 0.5) for t, c in qtf.items()}
         qnorm = math.sqrt(sum(v * v for v in qvec.values())) or 1.0
@@ -102,16 +107,21 @@ class VectorIndex:
             # Blend: coverage answers "does this chunk explain what was asked",
             # cosine keeps long, unfocused chunks from winning by accident.
             score = 0.6 * coverage + 0.4 * min(1.0, cosine * 1.6)
+            rank_bonus = 0.45 if (c["kind"] not in ("past_query", "rule", "bug") and self._headings[i] and self._headings[i] <= q_plain) else 0.0  # asked about exactly this section
+            if c["kind"] == "past_query":
+                rank_bonus = -0.3  # a policy answers a policy question before a similar past ticket does (ordering only, as above)
             if department and c["department"] == department:
                 score *= 1.12
             elif department and c["department"] not in (department, "Other"):
                 score *= 0.85
-            scored.append(
+            scored.append((rank_bonus,
                 Hit(
                     chunk_id=c["chunk_id"], title=c["title"], text=c["text"], department=c["department"],
-                    kind=c["kind"], store=self.store, score=min(score, 1.0), source=c.get("source"),
+                    kind=c["kind"], store=self.store, score=min(score, 1.0), rank=min(score, 1.0) + rank_bonus, source=c.get("source"),
                     ref_ticket_id=c.get("ref_ticket_id"), matched=matched,
                 )
-            )
-        scored.sort(key=lambda h: h.score, reverse=True)
-        return scored[:k]
+            ))
+        # The heading bonus only re-orders results ("warranty" puts the Warranty section first); it never raises a score,
+        # so it cannot turn an unfamiliar problem into a "known path".
+        scored.sort(key=lambda bh: bh[1].score + bh[0], reverse=True)
+        return [h for _, h in scored[:k]]

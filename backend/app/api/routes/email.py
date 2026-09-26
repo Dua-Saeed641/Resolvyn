@@ -13,6 +13,7 @@ class InboundIn(BaseModel):
     subject: str = ""
     text: str
     ticket_id: str | None = None
+    headers: dict | None = None  # Message-ID, In-Reply-To, References, Auto-Submitted... when the sender provides them
 
     model_config = {"populate_by_name": True}
 
@@ -28,7 +29,7 @@ async def inbound(request: Request):
         body = InboundIn.model_validate({"from": form.get("from", ""), "subject": form.get("subject", ""),
                                          "text": form.get("text", "") or form.get("body-plain", "")})
     try:
-        return await email_service.receive(body.sender, body.subject, body.text, body.ticket_id)
+        return await email_service.receive(body.sender, body.subject, body.text, body.ticket_id, headers=body.headers)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
 
@@ -40,7 +41,7 @@ def thread(ticket_id: str):
 
 @router.get("/outbox")
 def outbox(limit: int = 50):
-    return [m.__dict__ for m in email_service.OUTBOX[-limit:]][::-1]
+    return [m.public() for m in email_service.OUTBOX[-limit:]][::-1]
 
 
 @router.get("/status")
@@ -63,3 +64,15 @@ def send_test(body: TestIn):
                 body=f"This is a test from {s.agent_name}. If you can read it, outgoing email works.", kind="test")
     _send(mail)
     return {"to": mail.to, "delivered": mail.delivered, "intended_for": mail.intended_for}
+
+
+@router.get("/eml/{index}")
+def eml(index: int):
+    """The message exactly as it goes on the wire (newest first, like /outbox): open it in any mail client."""
+    from fastapi import HTTPException
+    from fastapi.responses import Response
+
+    box = email_service.OUTBOX[::-1]
+    if not 0 <= index < len(box) or not box[index].raw:
+        raise HTTPException(404, "No such email")
+    return Response(box[index].raw, media_type="message/rfc822", headers={"Content-Disposition": f'attachment; filename="{box[index].ticket_id}.eml"'})

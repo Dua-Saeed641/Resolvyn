@@ -63,6 +63,8 @@ def _is_tool_flow(ctx: TurnContext) -> bool:
     }:
         if st.get("awaiting") == "approval" and j.department not in TOOL_DEPARTMENTS:
             return False  # e.g. a warranty or price question while the refund waits: answer it from the documents
+        if st.get("awaiting", "").startswith("confirm_") and not (j.yes or j.no) and j.department not in TOOL_DEPARTMENTS:
+            return False  # a different question while we wait for a yes/no: answer it, and keep the confirmation open
         return True
     if j.department not in TOOL_DEPARTMENTS:
         return False
@@ -73,6 +75,18 @@ def _is_tool_flow(ctx: TurnContext) -> bool:
     if j.department == "Order" and _PERSONAL_ORDER.search(ctx.text):
         return True  # "my order...": look up the caller's order, do not recite policy
     return j.intent == "Order Issue" and bool(_ORDER_ACTION.search(ctx.text) or _ORDER_STATUS.search(ctx.text))
+
+
+# "P-77", "E-12", "B9": something a device displays. It is only familiar if it appears in something we know.
+_ERROR_CODE = re.compile(r"\b(?!(?:ORD|RFD|TXN|SHP|PH|CUS|INR|GST|USB|IPX)\b)(?:[A-Za-z]{1,3}[-_]\d{1,4}|[A-Z]{1,2}\d{2,4})\b")
+
+
+def unfamiliar_code(text: str, passages: list[str]) -> str | None:
+    known = re.sub(r"[\s_-]", "", " ".join(passages).lower())
+    for m in _ERROR_CODE.finditer(text):
+        if re.sub(r"[\s_-]", "", m.group(0).lower()) not in known:
+            return m.group(0)
+    return None
 
 
 RESUME = re.compile(r"\b(where were we|as i was saying|i'?m back|sorry about that|anyway,? (?:so|where)|haan toh|haan ji bataiye)\b", re.I)
@@ -133,7 +147,9 @@ async def decide(ctx: TurnContext) -> Decision:
     common_hits = sorted((ret.common + ret.graph) if ret else [], key=lambda h: h.score, reverse=True)[:3]
     if ret and ret.bugs and not _desk_can_work_it(ctx):
         top_bug = ret.bugs[0]
-        if top_bug.score >= s.known_path_score:
+        # a taught fix is only reused for the SAME fault: if the caller quotes a code the taught case never mentioned, it is another problem
+        same_fault = not unfamiliar_code(ctx.text, [top_bug.title + " " + top_bug.text])
+        if top_bug.score >= s.known_path_score and same_fault:
             if "Human suggestion:" in top_bug.text:
                 sugg = top_bug.text.split("Human suggestion:", 1)[1].strip()
                 return Decision("INSTANT", "Seen before — a human already suggested the fix", int(top_bug.score * 100),
@@ -148,6 +164,10 @@ async def decide(ctx: TurnContext) -> Decision:
             return Decision("KNOWN_OPEN_BUG", "Same unknown problem already open with the team",
                             int(top_bug.score * 100), [top_bug] + know)
 
+    code = unfamiliar_code(ctx.text, [h.title + " " + h.text for h in [*know, *(ret.bugs if ret else [])]])
+    if code and not _desk_can_work_it(ctx):
+        # keyword overlap ("kettle", "earbuds") must not make a new fault look known: a code seen nowhere in memory is a first-time bug
+        return Decision("FIRST_TIME_BUG", f"Error code {code} appears nowhere in memory", int(best * 100), know)
     if best >= s.known_path_score:
         return Decision("INSTANT", "Known path in the rulebook", int(best * 100), know)
     if best < s.first_time_bug_score and _nothing_concrete(ctx):

@@ -49,11 +49,8 @@ def _spawn(coro) -> asyncio.Task:
     return task
 _INFO_QUESTION = re.compile(r"\b(warranty|claim|how much|price|cost|policy|return|refund policy|cover(?:ed|age)?)\b", re.I)
 _SIDE_TAG = re.compile(r"^\s*\[?\s*SIDE[_ ]?TALK", re.I)
-# Things the model likes to invent to sound helpful. They may only be said on the paths where they are true.
-_UNVERIFIED_CLAIM = re.compile(
-    r"already (?:been )?(?:reported|known|logged|flagged)|reported by (?:others|other|some)|other (?:customers|people|users)|"
-    r"others have|group log|actively working on|team is working on (?:a|the) fix|added your case|"
-    r"pehle se (?:report|pata)|dusre (?:customers|logon)", re.I)
+from app.services import truth
+from app.services.truth import UNVERIFIED_CLAIM as _UNVERIFIED_CLAIM  # noqa: E402  (kept for the tests that import it)
 _PREFIX = re.compile(r"^\s*(?:riya|agent|assistant)\s*:\s*", re.I)
 
 
@@ -224,7 +221,7 @@ async def _turn(session: CallSession, raw: str, seq: int) -> None:
     tid = session.ticket_id
     assert tid
     enriched = perception_service.enrich(raw, session.channel, expect_order=st.get("awaiting") == "order_id")
-    session.trace = {"turn": seq, "t0": started, "wall": utcnow().isoformat(), "heard": enriched["text"],
+    session.trace = {"turn": seq, "t0": started, "wall": utcnow().isoformat(), "tool_floor": _last_tool_id(tid), "heard": enriched["text"],
                      "language": enriched["language"], "entities": enriched["entities"], "blocked": []}
     text, ent = enriched["text"], enriched["entities"]
     if not text:
@@ -274,7 +271,7 @@ async def _turn(session: CallSession, raw: str, seq: int) -> None:
         j = await jev.refine_with_model(text, j, session.history[:-1])
     # An answer to the desk's own question ("it's priya@example.com" after "what's your order ID?") stays with that desk.
     prior = session.prior_judgment
-    if (st.get("awaiting") not in (None, "approval", "bug_followup") and prior and prior.intent != "General Query"
+    if (st.get("awaiting") not in (None, "approval", "bug_followup", "confirm_helped") and prior and prior.intent != "General Query"
             and j.department != prior.department and j.confidence < 85 and len(text.split()) <= 10):
         j.intent, j.department, j.carried = prior.intent, prior.department, True
     j.query = jev.write_query(text, j, subject=(ticket.subject if ticket and ticket.subject != "New conversation" else st.get("subject")))
@@ -296,6 +293,11 @@ async def _turn(session: CallSession, raw: str, seq: int) -> None:
     customer = session.customer
     ctx = TurnContext(session=session, ticket_id=tid, text=text, entities=ent, judgment=j, retrieval=ret,
                       customer=customer, state=st, language=session.language)
+
+    # "No, that's all, thanks" while a confirmation is open: the caller is finished and did not confirm, so nothing is done
+    if j.done and not j.yes and st.get("awaiting") in ("confirm_cancel", "confirm_refund", "confirm_unlock", "confirm_reset"):
+        st["awaiting"] = None
+        tickets.add_event(tid, "Orchestrator", "ACTION_DECLINED", "Caller finished without confirming the pending action; it was not carried out", status="COMPLETED")
 
     # ── 4. resolution of the previous answer ("does that help?" → yes) ───────
     resolved_now = False
@@ -359,7 +361,7 @@ async def _turn(session: CallSession, raw: str, seq: int) -> None:
                                                  or (department == "Technical" and _INFO_QUESTION.search(text))):
                 # a question the documents can answer (price, pickup, gift wrap…), not a job for the tool playbook
                 plan = Plan(goal="Answer the caller's question using the KNOWLEDGE, in your own words, briefly. If it is a procedure, give the key steps naturally.",
-                            fallback="Let me tell you what I know about that. Could you tell me a little more about what you need?",
+                            fallback=_knowledge_answer(decision),
                             status="ACTIVE", path="INSTANT", agent_state="COMPLETED", operation="Answered from the knowledge base")
             else:
                 plan = await agent.plan(ctx)
@@ -449,6 +451,17 @@ def _note_retrieval(session: CallSession, ret, j: jev.Judgment) -> None:
     )
 
 
+def _last_tool_id(ticket_id: str) -> int:
+    from sqlalchemy import func
+    from sqlmodel import Session, select
+
+    from app.database import engine
+    from app.models import ToolCall
+
+    with Session(engine) as s:
+        return s.exec(select(func.max(ToolCall.tool_call_id)).where(ToolCall.ticket_id == ticket_id)).one() or 0
+
+
 def _record_trace(session: CallSession, plan: Plan, decision: Decision, department: str, said: str, took: float) -> None:
     """One card per caller turn for the Live AI brain: heard → judged → recalled → decided → acted → guarded → spoke."""
     from sqlmodel import Session, select
@@ -460,14 +473,11 @@ def _record_trace(session: CallSession, plan: Plan, decision: Decision, departme
     if not tr.get("turn"):
         return
     t0 = tr.pop("t0", None)
-    since = tr.pop("wall", None)
-    tools = []
+    tr.pop("wall", None)
+    floor = tr.pop("tool_floor", 0)
     with Session(engine) as s:
-        rows = s.exec(select(ToolCall).where(ToolCall.ticket_id == session.ticket_id)).all()
-    for r in rows:
-        stamp = r.timestamp.isoformat() if r.timestamp else ""
-        if since and stamp >= since[:19]:
-            tools.append({"tool": r.tool_name, "status": r.status})
+        rows = s.exec(select(ToolCall).where(ToolCall.ticket_id == session.ticket_id, ToolCall.tool_call_id > floor)).all()
+    tools = [{"tool": r.tool_name, "status": r.status} for r in rows]
     tr.update(
         department=department, agent=f"{department} Agent", facts=plan.facts[:6], said=said,
         path=decision.path, total_ms=int(took * 1000), tools=tools,
@@ -690,7 +700,11 @@ async def _speak_plan(session: CallSession, ctx: TurnContext, plan: Plan, decisi
             queued.clear()
 
     bug_path = plan.path in ("FIRST_TIME_BUG", "KNOWN_OPEN_BUG") or bool(guidance_claims(plan))
-    evidence = " ".join(plan.facts) + " " + " ".join(g for g in (session.guidance or []))
+    guard_on = get_settings().truth_guard
+    # what a sentence may draw specifics from: verified facts, the playbook's own instructions (code-authored policy such as
+    # "3 to 5 working days"), retrieved passages, team guidance, and what the caller said
+    evidence = truth.evidence_text([*plan.facts, plan.goal, plan.fallback], [h.text for h in (decision.knowledge if decision else [])[:3]],
+                                   session.guidance or [], ctx.text or "")
 
     def emit(raw: str, *, final: bool = False) -> None:
         nonlocal held
@@ -699,12 +713,12 @@ async def _speak_plan(session: CallSession, ctx: TurnContext, plan: Plan, decisi
         sentence = speech.humanize(_clean(raw), capitalize=not continues)
         if not sentence or _redundant_ack(sentence, spoken, already_said):
             return
-        if not bug_path and _UNVERIFIED_CLAIM.search(sentence):
-            session.trace.setdefault("blocked", []).append({"said": sentence, "why": "claim not backed by any verified fact"})
-            return  # not backed by any verified fact: never say it
-        if _invented_date(sentence, evidence):
-            session.trace.setdefault("blocked", []).append({"said": sentence, "why": "date not in the verified facts"})
-            return  # a date or delivery day that no verified fact contains
+        why = truth.violation(sentence, evidence, plan.facts, allow_social=bug_path)
+        if why:
+            session.trace.setdefault("would_block", []).append({"said": sentence, "why": why})  # even with the guard off, for the benchmark
+            if guard_on:
+                session.trace.setdefault("blocked", []).append({"said": sentence, "why": why})
+                return  # not backed by a verified fact: never say it
         if held:
             sentence, held = f"{held} {sentence}", ""
         if not final and len(sentence.split()) <= 3 and sentence[-1] in ".!,?":
@@ -766,18 +780,23 @@ async def _speak_plan(session: CallSession, ctx: TurnContext, plan: Plan, decisi
 _ACKS = {"got it", "okay", "ok", "sure", "sure yeah", "right", "yeah", "alright", "mm-hmm", "mm hmm", "i see", "okay got it", "understood"}
 
 
-_MONTHS = r"jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?"
-_DATE_MENTION = re.compile(rf"\b(\d{{1,2}})(?:st|nd|rd|th)\b|\b(\d{{1,2}})\s+(?:{_MONTHS})\b|\b(?:{_MONTHS})\s+(\d{{1,2}})\b", re.I)
+from app.services.truth import invented_date as _invented_date  # noqa: E402
 
 
-def _invented_date(sentence: str, evidence: str) -> bool:
-    """A specific day ("by the 27th", "28 September") may only be said if the verified facts contain that day."""
-    days = {int(x) for x in re.findall(r"\d+", evidence) if len(x) <= 4}
-    for m in _DATE_MENTION.finditer(sentence):
-        day = next(int(g) for g in m.groups() if g)
-        if day not in days:
-            return True
-    return False
+def _knowledge_answer(decision: Decision) -> str:
+    """Without a language model, answer from the best passage itself: its first two sentences, in plain words."""
+    fallback = "Let me tell you what I know about that. Could you tell me a little more about what you need?"
+    for h in decision.knowledge[:1]:
+        body = h.text.strip()
+        heading = re.split(r"\s+[—-]\s+", h.title)[-1].strip()
+        body = re.sub(r"^\s*#+\s*[^\n]*\n", "", body)  # a leading markdown heading line
+        if heading and body.lower().startswith(heading.lower()):
+            body = body[len(heading):]
+        body = re.sub(r"\s+", " ", body).strip(" :-")
+        text = " ".join(re.split(r"(?<=[.!?])\s+", body)[:2]).strip()
+        if len(text) > 30:
+            return text if len(text) <= 300 else text[:300].rsplit(" ", 1)[0] + "."
+    return fallback
 
 
 def _hindi_goodbye(plan: Plan, session: CallSession) -> None:
@@ -912,6 +931,10 @@ async def end_call(session: CallSession, reason: str = "hangup") -> None:
     if not tid:
         return
     t = tickets.get(tid)
+    if t and t.session_id and t.session_id != session.session_id:
+        # another conversation (an email reply) has taken over this ticket: this old session must not close or escalate it
+        tickets.add_event(tid, "Resolvyn", "CALL_ENDED", f"Earlier session ended ({reason}); the ticket continues elsewhere", status="COMPLETED")
+        return
     tickets.update(tid, call_active=False)
     tickets.add_event(tid, "Resolvyn", "CALL_ENDED", f"Call ended ({reason})", status="COMPLETED")
     if not t or t.status in ("RESOLVED", "FAILED"):

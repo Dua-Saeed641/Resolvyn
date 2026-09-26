@@ -1,0 +1,398 @@
+{
+  "when": "2026-09-26 12:23",
+  "hardware": {
+    "cpu": "11th Gen Intel(R) Core(TM) i7-11850H @ 2.50GHz",
+    "ram_gb": "16",
+    "os": "Windows-10-10.0.26200-SP0",
+    "gpu": {
+      "name": "NVIDIA RTX A2000 Laptop GPU",
+      "vram_used_mb": 0,
+      "vram_total_mb": 4096
+    }
+  },
+  "model": "Qwen3.5-4B Q4_K_M (fast tier), local",
+  "reps": 5,
+  "offline": {
+    "jev": {
+      "routing": {
+        "n": 62,
+        "department_accuracy": 1.0,
+        "intent_accuracy": 0.9838709677419355,
+        "per_department": {
+          "Billing": "16/16",
+          "Account": "12/12",
+          "Order": "16/16",
+          "Technical": "12/12",
+          "Other": "6/6"
+        },
+        "misses": [],
+        "would_ask_model": 0.25806451612903225
+      },
+      "human_request": {
+        "n": 30,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "wrong": []
+      },
+      "heldout": {
+        "routing": {
+          "n": 24,
+          "department_accuracy": 0.75,
+          "intent_accuracy": 0.625,
+          "misses": [
+            {
+              "said": "they charged my credit card twice this morning",
+              "expected": "Billing",
+              "got": "Other"
+            },
+            {
+              "said": "i need my money returned for the cancelled order",
+              "expected": "Billing",
+              "got": "Order"
+            },
+            {
+              "said": "update the address on my profile",
+              "expected": "Account",
+              "got": "Technical"
+            },
+            {
+              "said": "i want to send back the speaker i bought",
+              "expected": "Order",
+              "got": "Other"
+            },
+            {
+              "said": "my headset keeps disconnecting from the phone",
+              "expected": "Technical",
+              "got": "Other"
+            },
+            {
+              "said": "my kettle does not switch on anymore",
+              "expected": "Technical",
+              "got": "Other"
+            }
+          ]
+        },
+        "human_request": {
+          "n": 30,
+          "precision": 1.0,
+          "recall": 0.9333333333333333,
+          "f1": 0.9655172413793104,
+          "wrong": [
+            "is there a manager i can speak to"
+          ]
+        }
+      },
+      "side_talk": {
+        "n": 30,
+        "accuracy": 0.9333333333333333,
+        "wrong": [
+          "can you close the door please",
+          "put that down right now"
+        ]
+      },
+      "dialogue_acts": {
+        "n": 20,
+        "accuracy": 0.95,
+        "wrong": [
+          "no that's it, thank you"
+        ]
+      },
+      "speed": {
+        "sentences": 3720,
+        "p50_ms": 0.4019999905722216,
+        "p95_ms": 0.46480001765303314,
+        "p99_ms": 0.620899983914569,
+        "max_ms": 1.3120999792590737
+      }
+    },
+    "retrieval": {
+      "n": 25,
+      "hit_at_1": 0.88,
+      "hit_at_3": 1.0,
+      "p50_ms": 1.8484000174794346,
+      "p95_ms": 2.7003999857697636,
+      "chunks_indexed": 42,
+      "misses": [
+        {
+          "question": "how long do refunds take to reach my account",
+          "expected": "billing_refund_policy.md",
+          "got": [
+            "ticket PH-1002: Solved query PH-1002 — Refund Status",
+            "ticket PH-0930: Solved query PH-0930 — Account Access"
+          ]
+        },
+        {
+          "question": "what is your return policy",
+          "expected": "shipping_and_returns_policy.md",
+          "got": [
+            "ticket PH-1031: Solved query PH-1031 — Order Issue",
+            "Shipping And Returns Policy:  And Returns Policy — Order cancellation"
+          ]
+        },
+        {
+          "question": "the app crashes when I open it",
+          "expected": "technical_troubleshooting_guide.md",
+          "got": [
+            "ticket PH-1015: Solved query PH-1015 — Technical Issue",
+            "Technical Troubleshooting Guide: ng Guide — Mobile app crashes or freezes"
+          ]
+        }
+      ]
+    }
+  },
+  "server": {
+    "ready_seconds": 3.9
+  },
+  "resolution": {
+    "n": 12,
+    "passed": 12,
+    "pass_rate": 1.0,
+    "resolved_autonomously": 6,
+    "scenarios": [
+      {
+        "id": "duplicate_refund_with_approval",
+        "passed": true,
+        "checks": {
+          "tools_called": true,
+          "status": true,
+          "human_gate": true,
+          "no_refund_before_approval": true
+        },
+        "turns": 3,
+        "seconds": 13.9,
+        "human_actions": 1,
+        "status": "RESOLVED",
+        "said": "Hang on, I'm pulling up ORD-83921 now... Okay, I found it. The system shows two successful charges of ₹2,499 just a minute apart for the same order. Sure thing, I've just sent this to my team lead for a quick nod. Nothin"
+      },
+      {
+        "id": "unlock_locked_account",
+        "passed": true,
+        "checks": {
+          "tools_called": true,
+          "status": true
+        },
+        "turns": 4,
+        "seconds": 11.2,
+        "human_actions": 0,
+        "status": "RESOLVED",
+        "said": "Hang on a sec while I check your account, Dua. For security, can you confirm the email address or the last four digits of your phone number? Okay, I found your account, Dua. It got locked after five failed login attempts"
+      },
+      {
+        "id": "delayed_shipment_status",
+        "passed": true,
+        "checks": {
+          "tools_called": true,
+          "status": true,
+          "said": true
+        },
+        "turns": 2,
+        "seconds": 7.6,
+        "human_actions": 0,
+        "status": "RESOLVED",
+        "said": "It's the Aluminium Laptop Stand, ₹1,899. Sorry, it's delayed at the Nagpur hub and now expected on 28 September. Is there anything else I can get you? No worries, I'm glad I could get that sorted for you. Have a wonderfu"
+      },
+      {
+        "id": "cancel_processing_order",
+        "passed": true,
+        "checks": {
+          "tools_called": true,
+          "status": true
+        },
+        "turns": 3,
+        "seconds": 7.2,
+        "human_actions": 0,
+        "status": "RESOLVED",
+        "said": "Okay, good news—since it hasn't shipped, we can still cancel this. The refund will hit your card in 3 to 5 working days. Done, Dua—ORD-84155 has been cancelled. The refund will hit your card in 3 to 5 working days. Anyth"
+      },
+      {
+        "id": "unknown_order_twice_escalates",
+        "passed": true,
+        "checks": {
+          "escalated": true
+        },
+        "turns": 2,
+        "seconds": 6.7,
+        "human_actions": 0,
+        "status": "WAITING_FOR_HUMAN",
+        "said": "Hmm, sorry, I don't see any order with 11111 in my system. Could you double-check the number on your email confirmation? Or just share the email address and I'll search there. Oh no, sorry about that! Let me pull up ORD-"
+      },
+      {
+        "id": "asks_for_a_manager",
+        "passed": true,
+        "checks": {
+          "escalated": true
+        },
+        "turns": 1,
+        "seconds": 6.0,
+        "human_actions": 0,
+        "status": "WAITING_FOR_HUMAN",
+        "said": "Hold on just a sec. I'm looping in my manager right now, so she can pick up this exact spot without you repeating anything. Do you still have that order number handy?"
+      },
+      {
+        "id": "angry_caller_escalates",
+        "passed": true,
+        "checks": {
+          "escalated": true
+        },
+        "turns": 2,
+        "seconds": 10.3,
+        "human_actions": 0,
+        "status": "WAITING_FOR_HUMAN",
+        "said": "Hang on, I'm pulling in a senior tech expert for you now so we don't have to repeat anything. Can you please tell me exactly what happened the last time this disconnected? Okay, let me get our senior specialist on the li"
+      },
+      {
+        "id": "policy_question_from_documents",
+        "passed": true,
+        "checks": {
+          "tools_called": true,
+          "said": true
+        },
+        "turns": 2,
+        "seconds": 6.8,
+        "human_actions": 0,
+        "status": "RESOLVED",
+        "said": "So, the kettle has a one-year warranty against manufacturing defects, but water damage isn't covered. If it's just not heating up, you should unplug it for five minutes to reset the thermal cutoff, make sure there's enou"
+      },
+      {
+        "id": "hinglish_order_status",
+        "passed": true,
+        "checks": {
+          "tools_called": true,
+          "status": true
+        },
+        "turns": 2,
+        "seconds": 4.8,
+        "human_actions": 0,
+        "status": "RESOLVED",
+        "said": "So, it's that Aluminium Laptop Stand for ₹1,899. Umm, yeah, it's delayed at the Nagpur hub right now. Sorry about that, but expect it by 28th September. Ji, shukriya Nova Retail ko call karne ke liye. Aapka din accha rah"
+      },
+      {
+        "id": "someone_elses_order_is_refused",
+        "passed": true,
+        "checks": {
+          "tools_not_called": true,
+          "said_not": true
+        },
+        "turns": 1,
+        "seconds": 4.1,
+        "human_actions": 0,
+        "status": "ACTIVE",
+        "said": "Hang on, sorry, I'm looking for ORD-83921 under your name... Hmm, it's not showing up there at all. Does that number belong to someone else?"
+      },
+      {
+        "id": "side_talk_is_ignored",
+        "passed": true,
+        "checks": {
+          "stayed_silent": true
+        },
+        "turns": 1,
+        "seconds": 2.0,
+        "human_actions": 0,
+        "status": "NEW",
+        "said": ""
+      },
+      {
+        "id": "tool_outage_never_claims_success",
+        "passed": true,
+        "checks": {
+          "escalated": true,
+          "said_not": true
+        },
+        "turns": 1,
+        "seconds": 6.8,
+        "human_actions": 0,
+        "status": "WAITING_FOR_HUMAN",
+        "said": "Umm, sorry, the system isn't pulling up that order right now. My teammate is checking it live for you, yeah? Do you have the email address it came from?"
+      }
+    ],
+    "mean_turns": 2,
+    "mean_seconds": 7.283333333333333
+  },
+  "learning": {
+    "n": 3,
+    "flagged": 1.0,
+    "relayed_live": 1.0,
+    "second_caller_from_memory": 1.0,
+    "rows": [
+      {
+        "issue": "my studio headphones show a flashing purple light ",
+        "flagged_for_manager": true,
+        "suggestion_relayed_live": true,
+        "relay_first_word_ms": 2052,
+        "second_caller_answered_from_memory": true,
+        "second_caller_first_word_ms": 1412
+      },
+      {
+        "issue": "my smart kettle beeps five times and shows error E",
+        "flagged_for_manager": true,
+        "suggestion_relayed_live": true,
+        "relay_first_word_ms": 1887,
+        "second_caller_answered_from_memory": true,
+        "second_caller_first_word_ms": 3225
+      },
+      {
+        "issue": "the light on my earbuds case stays amber after cha",
+        "flagged_for_manager": true,
+        "suggestion_relayed_live": true,
+        "relay_first_word_ms": 2709,
+        "second_caller_answered_from_memory": true,
+        "second_caller_first_word_ms": 3258
+      }
+    ]
+  },
+  "latency": {
+    "turns": 22,
+    "first_sound_ms": {
+      "n": 22,
+      "p50": 153.0,
+      "p95": 3019.7,
+      "max": 3344.6
+    },
+    "first_word_ms": {
+      "n": 22,
+      "p50": 1777.7,
+      "p95": 4089.2,
+      "max": 4342.6
+    },
+    "full_reply_ms": {
+      "n": 22,
+      "p50": 2502.9,
+      "p95": 4741.4,
+      "max": 5071.1
+    }
+  },
+  "server_side": {
+    "turns": 23,
+    "acknowledgement_ms": {
+      "n": 13,
+      "p50": 4,
+      "p95": 5,
+      "max": 9
+    },
+    "jev_ms": {
+      "n": 23,
+      "p50": 13,
+      "p95": 2025,
+      "max": 2036
+    },
+    "first_word_ms": {
+      "n": 23,
+      "p50": 1766,
+      "p95": 4088,
+      "max": 4341
+    },
+    "turn_total_ms": {
+      "n": 23,
+      "p50": 2452,
+      "p95": 4739,
+      "max": 5068
+    },
+    "turns_with_acknowledgement": 0.5652173913043478
+  },
+  "gpu_loaded": {
+    "name": "NVIDIA RTX A2000 Laptop GPU",
+    "vram_used_mb": 3285,
+    "vram_total_mb": 4096
+  }
+}

@@ -74,6 +74,8 @@ class Settings(BaseSettings):
     email_imap_host: str | None = None
     email_smtp_host: str | None = None
     email_smtp_port: int = 465
+    email_force_ipv4: bool = True  # some networks reset IPv6 connections to mail servers; every connection is made over IPv4
+    email_smtp_security: str = "ssl"  # ssl (465) | starttls (587) | none (a local test server)
     email_poll_seconds: int = 10
     # Map real addresses to demo customers: "me@gmail.com:CUS-20481"
     email_aliases: str = ""
@@ -88,6 +90,9 @@ class Settings(BaseSettings):
     # ── Decision thresholds ──────────────────────────────────────────────────
     # Refunds above this amount (INR) need a human Approve (docs/project.md §24, §84).
     refund_auto_limit: int = 1000
+    # The truth guard (services/truth.py). Only ever switched off by the benchmark, to measure the raw model.
+    truth_guard: bool = True
+    truth_prompt: bool = True  # the truth rules in the model's prompt; only switched off by the benchmark's stress condition
     # Retrieval score at/above which the rulebook counts as a confident "known path".
     known_path_score: float = 0.5
     # Below this best score in *both* memories, the query is a first-time bug.

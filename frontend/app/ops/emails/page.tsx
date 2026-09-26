@@ -116,11 +116,14 @@ export default function EmailsPage() {
                   </p>
                   <p className="text-xs text-muted-foreground">
                     To {mail.to}
-                    {mail.intended_for ? ` (customer: ${mail.intended_for})` : ""} · {mail.ticket_id} · {mail.delivered}
+                    {mail.intended_for ? ` (customer: ${mail.intended_for})` : ""} · {mail.ticket_id} · {mail.delivered} ·{" "}
+                    <a href={`/api/email/eml/${Math.min(selected, mails.length - 1)}`} className="underline underline-offset-2 hover:text-foreground">
+                      Download .eml
+                    </a>
                   </p>
                 </div>
                 {mail.html ? (
-                  <iframe title="Email preview" sandbox="" srcDoc={mail.html} className="h-[640px] w-full bg-white" />
+                  <iframe title="Email preview" sandbox="" srcDoc={mail.html.replace("cid:resolvyn-logo@resolvyn", "/resolvyn-logo.png")} className="h-[640px] w-full bg-white" />
                 ) : (
                   <pre className="max-h-[640px] overflow-auto whitespace-pre-wrap p-5 text-[13px] leading-relaxed">{mail.body}</pre>
                 )}
